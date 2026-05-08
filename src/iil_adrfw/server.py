@@ -6,8 +6,6 @@ Two tools implemented for the skeleton:
 
 Six more (query, diff, audit, propose, shadow_pr, narrate) will follow.
 """
-from __future__ import annotations
-
 import os
 from datetime import datetime, timezone
 from pathlib import Path
@@ -203,7 +201,7 @@ def adr_check(req: CheckRequest) -> CheckResponse:
     return _do_check(req)
 
 
-def _do_explain(req: "ExplainRequest") -> "ExplainResponse":
+def _do_explain(req: ExplainRequest) -> ExplainResponse:
     """Pure implementation, callable directly from tests and CLI."""
     adrs = _load_constitution()
     rule: Rule | None = None
