@@ -305,7 +305,67 @@ def _cmd_narrate(args: argparse.Namespace) -> int:
     return 0
 
 
+# ─── adr_validate (frontmatter schema validation) ────────────────
+
+
+def _cmd_validate(args: argparse.Namespace) -> int:
+    """Validate ADR frontmatter against schema v3."""
+    from iil_adrfw.persistence import load_adr, ADRLoadError
+
+    adr_dir = Path(args.adr_dir)
+    schema_dir = Path(args.schema_dir) if args.schema_dir else adr_dir.parent.parent / "schemas"
+
+    if not adr_dir.is_dir():
+        print(f"error: {adr_dir} is not a directory", file=sys.stderr)
+        return 2
+
+    md_files = sorted(adr_dir.glob("ADR-*.md"))
+    if not md_files:
+        print(f"error: no ADR-*.md files found in {adr_dir}", file=sys.stderr)
+        return 2
+
+    ok, failures = [], []
+    for md in md_files:
+        try:
+            load_adr(md, schema_dir, validate=True)
+            ok.append(md.name)
+        except ADRLoadError as e:
+            msg = str(e).split('\n')[1] if '\n' in str(e) else str(e)[:120]
+            failures.append((md.name, msg))
+        except Exception as e:
+            failures.append((md.name, f"{type(e).__name__}: {str(e)[:100]}"))
+
+    total = len(ok) + len(failures)
+    pct = 100 * len(ok) / total if total else 0
+
+    if args.json:
+        _print_json({
+            "total": total, "passed": len(ok), "failed": len(failures),
+            "percent": round(pct, 1),
+            "failures": [{"file": f, "error": e} for f, e in failures],
+        })
+    else:
+        print(f"ADR Frontmatter Validation: {len(ok)}/{total} ({pct:.1f}%)")
+        if failures:
+            print(f"\nFAILED ({len(failures)}):")
+            for name, err in failures:
+                print(f"  {name}: {err}")
+        else:
+            print("  ✓ All ADRs valid")
+
+    return 1 if failures else 0
+
+
 # ─── Argument parser ────────────────────────────────────────────
+
+
+def _add_validate_parser(sub):
+    p = sub.add_parser("validate", help="Validate ADR frontmatter against schema v3")
+    p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
+    p.add_argument("--schema-dir", dest="schema_dir",
+                   help="Directory containing JSON schema files (default: auto-detect)")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=_cmd_validate)
 
 
 def _add_check_parser(sub):
@@ -399,6 +459,7 @@ def main() -> None:
     )
     sub = p.add_subparsers(dest="cmd", required=True)
 
+    _add_validate_parser(sub)
     _add_check_parser(sub)
     _add_explain_parser(sub)
     _add_list_parser(sub)
