@@ -1,0 +1,30 @@
+adr_id: ADR-9088
+schema_version: "1.0"
+default_severity: error
+
+rules:
+  - id: tenant-id-is-bigint
+    title: tenant_id is BIGINT NOT NULL (HYPOTHETICAL v1.0 — wrong claim)
+    severity: error
+    valid_from: "2026-05-21T00:00:00Z"
+    knowledge_from: "2026-05-07T00:00:00Z"
+    applies_to:
+      include_paths: ["mcp-hub/rag_mcp/db/**.sql"]
+      file_types: [".sql"]
+    checker:
+      type: regex
+      pattern: "tenant_id\\s+(?!BIGINT)(UUID|INTEGER|INT)\\b"
+      flags: "im"
+      negate: false
+    rationale: >
+      HYPOTHETICAL v1.0 rule that conflicts with consumer-repo reality.
+      Real consumer-repos all use UUIDField. This rule should be flagged by
+      cross-repo validation as PROVEN conflict that BLOCKS publish.
+    fix_suggestions:
+      - description: "Use BIGINT for tenant_id"
+        confidence: 0.9
+        automated: false
+    audience_explanations:
+      new_dev: "Use BIGINT (this is the wrong v1.0 claim)"
+    blast_radius_estimator: platform
+    tags: ["hypothetical-v1.0"]

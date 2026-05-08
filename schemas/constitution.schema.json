@@ -1,0 +1,181 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iil.gmbh/schemas/adrfw/constitution.v1.schema.json",
+  "title": "Constitution Graph",
+  "description": "Generated, denormalized view of the entire ADR set as a graph. Produced by 'iil-adrfw build'. Consumers (adr_query, adr_audit, adr_diff) read this rather than re-parsing markdown each call.",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "source_revision", "nodes", "edges"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "const": "1.0" },
+    "generated_at": { "type": "string", "format": "date-time" },
+    "source_revision": {
+      "type": "string",
+      "description": "Git commit SHA of the ADR repository at generation time. Critical for reproducibility."
+    },
+    "source_root": {
+      "type": "string",
+      "description": "Absolute or repo-relative path to the adrs/ directory."
+    },
+    "health": { "$ref": "#/$defs/HealthSnapshot" },
+    "nodes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Node" }
+    },
+    "edges": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Edge" }
+    },
+    "concept_index": {
+      "type": "object",
+      "description": "Inverted index: concept token -> list of ADR ids mentioning it. Built from rationale + rule titles + extracted noun phrases.",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string", "pattern": "^ADR-[0-9]{3,4}$" }
+      }
+    },
+    "domain_index": {
+      "type": "object",
+      "description": "Domain tag -> list of ADRs covering it.",
+      "additionalProperties": {
+        "type": "array",
+        "items": { "type": "string", "pattern": "^ADR-[0-9]{3,4}$" }
+      }
+    },
+    "active_rule_count": {
+      "type": "integer",
+      "description": "Number of rules currently in force (status accepted/experimental, valid_to null or future)."
+    },
+    "open_questions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/OpenQuestion" },
+      "description": "Auto-detected gaps where the constitution has no opinion. Surfaced by adr_query when no ADR matches."
+    }
+  },
+  "$defs": {
+    "Node": {
+      "type": "object",
+      "required": ["id", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "description": "Globally unique node id. ADR nodes use ADR-id; concept nodes use 'concept:slug'." },
+        "kind": {
+          "type": "string",
+          "enum": ["adr", "rule", "concept", "domain", "incident", "principal"]
+        },
+        "label": { "type": "string" },
+        "data": {
+          "type": "object",
+          "description": "Kind-specific payload. ADR nodes embed full frontmatter; rule nodes embed compiled checker; concept nodes carry text + embedding ref."
+        },
+        "position_hint": {
+          "type": "object",
+          "description": "Optional layout hint for visualization tools (D3, Cytoscape).",
+          "properties": {
+            "cluster": { "type": "string" },
+            "x": { "type": "number" },
+            "y": { "type": "number" }
+          }
+        }
+      }
+    },
+    "Edge": {
+      "type": "object",
+      "required": ["from", "to", "kind"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "type": "string" },
+        "to":   { "type": "string" },
+        "kind": {
+          "type": "string",
+          "enum": [
+            "supersedes",
+            "superseded-by",
+            "depends-on",
+            "conflicts-with",
+            "informs",
+            "applies-to-domain",
+            "mentions-concept",
+            "motivated-by-incident",
+            "owned-by-principal",
+            "implies",
+            "co-occurs-with"
+          ],
+          "description": "Edge semantics. 'implies' and 'co-occurs-with' are inferred, not declared."
+        },
+        "weight": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "For inferred edges (implies, co-occurs-with): strength of inference. Declared edges always have weight=1."
+        },
+        "evidence": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Citations: 'frontmatter.depends_on', 'inferred:embedding-similarity-0.87', 'audit:co-violation-pattern'."
+        },
+        "since": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When this edge became active. Edges can come and go as ADRs are added/superseded."
+        },
+        "until": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        }
+      }
+    },
+    "HealthSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "score": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "Overall constitutional health. Composite of dimensions below."
+        },
+        "dimensions": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "internal_consistency": { "type": "number", "minimum": 0, "maximum": 1, "description": "1.0 = no detected conflicts among accepted ADRs" },
+            "code_alignment": { "type": "number", "minimum": 0, "maximum": 1, "description": "1.0 = no rule violations in code" },
+            "coverage": { "type": "number", "minimum": 0, "maximum": 1, "description": "1.0 = every active domain has at least one ADR" },
+            "freshness": { "type": "number", "minimum": 0, "maximum": 1, "description": "1.0 = all ADRs reviewed within their cadence" },
+            "supersession_hygiene": { "type": "number", "minimum": 0, "maximum": 1, "description": "1.0 = no dangling 'supersedes' references and no orphaned superseded ADRs" }
+          }
+        },
+        "issues_summary": {
+          "type": "object",
+          "properties": {
+            "critical": { "type": "integer" },
+            "error":    { "type": "integer" },
+            "warning":  { "type": "integer" },
+            "info":     { "type": "integer" }
+          }
+        }
+      }
+    },
+    "OpenQuestion": {
+      "type": "object",
+      "required": ["topic", "evidence"],
+      "additionalProperties": false,
+      "properties": {
+        "topic": { "type": "string", "description": "Short label: 'webhook-idempotency-multitenancy'" },
+        "summary": { "type": "string" },
+        "evidence": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Why we think this is unanswered: 'mentioned-in-3-issues', 'queried-via-adr_query-7-times', 'audit-detected-divergent-implementations'."
+        },
+        "candidate_authors": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Suggested deciders based on related ADR ownership."
+        },
+        "priority": { "type": "string", "enum": ["low", "medium", "high"] }
+      }
+    }
+  }
+}

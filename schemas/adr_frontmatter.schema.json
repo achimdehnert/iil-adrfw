@@ -1,0 +1,489 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iil.gmbh/schemas/adrfw/adr_frontmatter.v1.schema.json",
+  "title": "ADR Frontmatter",
+  "description": "YAML frontmatter for an ADR markdown file. Captures identity, lifecycle, relations and applicability. Executable rules live in a sibling .rules.yaml file referenced by 'rules_file'.",
+  "type": "object",
+  "required": ["id", "title", "status", "decision_date", "deciders", "domains"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^ADR-[0-9]{3,4}$",
+      "description": "Stable identifier. Never renumber after merge."
+    },
+    "title": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 120,
+      "description": "Decision-stating headline. Sentence case. Avoid 'should' / 'we want' — state the decision."
+    },
+    "status": {
+      "type": "string",
+      "enum": ["draft", "proposed", "accepted", "deprecated", "superseded", "rejected", "experimental"],
+      "description": "Lifecycle state. 'draft' is pre-proposal. 'experimental' means accepted-but-revocable: rules may apply with severity capped at 'warning'."
+    },
+    "status_history": {
+      "type": "array",
+      "description": "Audit trail of status changes. Append-only.",
+      "items": { "$ref": "#/$defs/StatusTransition" }
+    },
+    "decision_date": {
+      "type": "string",
+      "format": "date",
+      "description": "When the decision was made (calendar date, not commit time)."
+    },
+    "amended": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/Amendment" },
+      "description": "Append-only list of substantive revisions to this ADR after first proposal. An amendment changes content but not identity — distinct from supersession (which replaces the ADR) and from status transitions (which change lifecycle). Use for clarifications, factual corrections, scope refinements."
+    },
+    "decision_drivers": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/DecisionDriver" },
+      "description": "Structured forces driving the decision. Made explicit so audits can verify that supersessions actually address the original drivers."
+    },
+    "open_questions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/OpenQuestion" },
+      "description": "Known unanswered questions at decision time. Each has an owner and a deadline. Treated as first-class debt — surfaces in audit reports and in the constitution graph."
+    },
+    "deprecation_timeline": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/DeprecationStep" },
+      "description": "When this ADR supersedes others, the timeline phases the transition. Critical for 'zero breaking changes' migrations: each phase says which version of the world is acceptable and what triggers the next phase."
+    },
+    "spof_mitigation": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/SPOFMitigation" },
+      "description": "Single-points-of-failure introduced by this decision and how they are mitigated. Required reading for production-impacting ADRs; flagged by audit when missing."
+    },
+    "valid_from": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Bi-temporal: when the decision takes effect in the world. Defaults to decision_date midnight UTC if absent."
+    },
+    "valid_to": {
+      "type": ["string", "null"],
+      "format": "date-time",
+      "description": "When the decision stops applying. null means open-ended. Set when status becomes 'superseded' or 'deprecated'."
+    },
+    "knowledge_from": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Bi-temporal: when WE LEARNED this should be the rule. Often equal to valid_from, but differs for retroactive rules."
+    },
+    "retroactive": {
+      "type": "boolean",
+      "default": false,
+      "description": "If true, rules apply to code committed before valid_from. Use sparingly, document reason in 'consequences'."
+    },
+    "deciders": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" },
+      "description": "Humans (or principal:human pairs) who own this decision. Format: 'name <email>' or 'github:handle'."
+    },
+    "consulted": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Stakeholders consulted but not deciding."
+    },
+    "informed": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Stakeholders informed after the decision."
+    },
+    "domains": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]*(/[a-z][a-z0-9-]*)*$"
+      },
+      "description": "Slash-namespaced domain tags. Examples: 'django/models', 'celery', 'i18n', 'security/auth'. Used to filter rule applicability."
+    },
+    "tech_stack": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Free-form technology tags: 'python>=3.12', 'postgres>=16', 'django>=5.0'. Plain version constraints accepted."
+    },
+    "supersedes": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ADRRef" },
+      "description": "ADRs this decision replaces. Must be matched by 'superseded_by' on the target."
+    },
+    "superseded_by": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ADRRef" },
+      "description": "ADRs that replace this decision. Set automatically when target ADR is created with 'supersedes'."
+    },
+    "depends_on": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ADRRef" },
+      "description": "ADRs whose decisions this one assumes. Audit will flag dangling deps."
+    },
+    "conflicts_with": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ADRRef" },
+      "description": "Known conflicts. Audit may add more if it detects them."
+    },
+    "informs": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ADRRef" },
+      "description": "Weaker than depends_on: 'this is good context for understanding X'."
+    },
+    "rules_file": {
+      "type": ["string", "null"],
+      "description": "Path to sibling .rules.yaml file with executable rules. null = informational ADR with no automatable rules."
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Free-form tags for search and filtering."
+    },
+    "incident_links": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/IncidentLink" },
+      "description": "Real incidents that motivated or stress-tested this decision. Critical for institutional memory."
+    },
+    "last_reviewed": {
+      "type": ["string", "null"],
+      "format": "date",
+      "description": "Last time a human confirmed this ADR is still correct."
+    },
+    "updated": {
+      "type": "string",
+      "format": "date",
+      "description": "Most recent substantive update date. Distinct from amended[].at (which tracks specific amendments). Used for sort/filter operations. Real-world frequency: ~5%."
+    },
+    "version": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Revision counter — increments on substantive change. Distinct from amended[].version (which uses semver strings). Real-world frequency: ~3%."
+    },
+    "review_status": {
+      "type": "string",
+      "enum": ["pending", "in_review", "approved", "rejected", "stale"],
+      "description": "Governance workflow state. Orthogonal to lifecycle 'status'. Tracks whether this ADR has been reviewed regardless of its lifecycle phase. Real-world frequency: ~3%."
+    },
+    "owner": {
+      "type": "string",
+      "description": "Single accountable person carrying operational responsibility. Distinct from deciders (plural decision-makers) and consulted (advisors). Receives `author` alias mappings. Real-world frequency: ~1% direct + ~3% via author alias."
+    },
+    "implementation_done_when": {
+      "type": "string",
+      "description": "Acceptance criteria for considering implementation complete. Should be testable. Read by adr_audit's implementation_evidence_check (Iter 3+). Real-world frequency: ~1%."
+    },
+    "implementation_evidence": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Concrete pointers to the implementation: commit SHAs, PR URLs, file paths, deployment IDs. Read by adr_audit to verify implementation_status is backed by evidence. Real-world frequency: ~62%."
+    },
+    "related": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ADRRef" },
+      "description": "Bidirectional 'see also' link to related ADRs. Weaker than depends_on (which implies a hard dependency). Audit does NOT enforce reciprocity (unlike supersedes/superseded_by). Real-world frequency: ~41%."
+    },
+    "amends": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ADRRef" },
+      "description": "'This ADR amends X' — flat list of ADR-NNNN references whose decisions this one modifies without superseding. Distinct from the existing nested 'amended' field (which tracks revisions of THIS ADR). Real-world frequency: ~34%.",
+      "examples": [["ADR-099"]]
+    },
+    "principal": {
+      "type": "string",
+      "enum": ["operator", "user", "platform"],
+      "default": "operator",
+      "description": "Who owns this rule in the principal hierarchy. 'platform' rules apply repo-wide; 'operator' to a specific deployment; 'user' to per-user config."
+    },
+    "scope": {
+      "$ref": "#/$defs/Scope"
+    },
+    "repo": {
+      "type": ["string", "null"],
+      "description": "Origin repository of this ADR (the repo where it was first authored). null for repo-agnostic ADRs."
+    },
+    "consumers": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Downstream repositories that depend on or implement this ADR. Used by the constitution graph to compute blast-radius for changes."
+    },
+    "consolidates": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ADRRef" },
+      "description": "ADRs (or specific sections of ADRs) merged into this one. Stronger than 'supersedes' — implies that the consolidating ADR is the authoritative replacement for ALL of the consolidated decisions taken together. Each consolidated ADR's status SHOULD be set to 'superseded' with superseded_by pointing here."
+    },
+    "implementation_status": {
+      "type": "string",
+      "enum": ["none", "planned", "in_progress", "partial", "implemented", "complete", "verified", "rolled_back"],
+      "default": "none",
+      "description": "Orthogonal to 'status'. A decision can be 'accepted' but 'implementation_status: none' (just decided, not built yet). Critical for distinguishing spec-drift from implementation-lag during audits."
+    },
+    "per_repo_status": {
+      "type": "object",
+      "description": "In a polyrepo platform an ADR often has different states across repos. Map of repo-name to per-repo lifecycle. If absent, the top-level 'status' / 'implementation_status' apply uniformly. Repo names should match those listed in 'consumers' or 'repo'.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": ["draft", "proposed", "accepted", "deprecated", "superseded", "rejected", "experimental"]
+          },
+          "implementation_status": {
+            "type": "string",
+            "enum": ["none", "planned", "in_progress", "partial", "implemented", "complete", "verified", "rolled_back"]
+          },
+          "planned_phase": {
+            "type": ["string", "integer", "null"],
+            "description": "Roadmap phase identifier (e.g. 'Phase 1', '2', or a date). Free-form to match existing roadmap conventions."
+          },
+          "target_date": {
+            "type": ["string", "null"],
+            "format": "date"
+          },
+          "actual_completion_date": {
+            "type": ["string", "null"],
+            "format": "date"
+          },
+          "notes": {
+            "type": "string",
+            "maxLength": 500
+          }
+        }
+      }
+    },
+    "staleness_months": {
+      "type": ["integer", "null"],
+      "minimum": 1,
+      "description": "How many months without a review the ADR is considered stale. If absent, falls back to derivation from 'review_cadence'. Used to compute 'next_review_date' and to flag ADRs in audits."
+    },
+    "drift_check_paths": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Glob patterns telling auditors WHERE to look for drift against this ADR. Optimization: skips repo-wide scan. Examples: 'mcp-hub/rag_mcp/db/schema.sql', 'platform/packages/platform-search/**'. Differs from 'scope.include_paths' which constrains rule applicability — these paths are hints, scope is enforcement."
+    },
+    "rationale_summary": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "Single-paragraph 'why'. Full rationale lives in the markdown body."
+    }
+  },
+  "$defs": {
+    "ADRRef": {
+      "oneOf": [
+        {
+          "type": "string",
+          "pattern": "^ADR-[0-9]{3,4}(§[A-Za-z0-9_.-]+)?$",
+          "description": "Plain reference. Optional '§<section>' suffix for partial reference (e.g. 'ADR-187§E3' = section E3 of ADR-187)."
+        },
+        {
+          "type": "object",
+          "required": ["id"],
+          "additionalProperties": false,
+          "properties": {
+            "id": {
+              "type": "string",
+              "pattern": "^ADR-[0-9]{3,4}$",
+              "description": "ADR id without section suffix; use 'section' field instead for clarity."
+            },
+            "section": {
+              "type": "string",
+              "description": "Optional section identifier within the referenced ADR (e.g. 'E3', '4.2'). Lets one ADR partially supersede or consolidate part of another."
+            },
+            "reason": { "type": "string", "maxLength": 200 },
+            "scope": { "$ref": "#/$defs/Scope" }
+          }
+        }
+      ],
+      "description": "Reference to another ADR or part of one. Plain string for simple cases ('ADR-099') or section-scoped ('ADR-187§E3'). Object form when reason or scope must be attached."
+    },
+    "StatusTransition": {
+      "type": "object",
+      "required": ["from", "to", "at", "by"],
+      "additionalProperties": false,
+      "properties": {
+        "from": { "type": ["string", "null"], "enum": ["draft", "proposed", "accepted", "deprecated", "superseded", "rejected", "experimental", null] },
+        "to":   { "type": "string", "enum": ["draft", "proposed", "accepted", "deprecated", "superseded", "rejected", "experimental"] },
+        "at":   { "type": "string", "format": "date-time" },
+        "by":   { "type": "string" },
+        "reason": { "type": "string" },
+        "evidence": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Links to incidents, PRs, discussions backing the transition."
+        }
+      }
+    },
+    "IncidentLink": {
+      "type": "object",
+      "required": ["id"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "description": "e.g. 'INC-2024-11-23' or external ticket id" },
+        "url": { "type": "string", "format": "uri" },
+        "summary": { "type": "string", "maxLength": 200 },
+        "relation": { "type": "string", "enum": ["motivated", "stress-tested", "exposed-gap", "vindicated"] }
+      }
+    },
+    "Scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Limits where rules apply. All filters AND-combined. Empty object = repo-wide.",
+      "properties": {
+        "include_paths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Glob patterns of paths where rules apply. Default: all."
+        },
+        "exclude_paths": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Glob patterns to exclude. Common: 'tests/**', 'migrations/**' for some rules."
+        },
+        "file_types": {
+          "type": "array",
+          "items": { "type": "string", "pattern": "^\\.[a-z0-9]+$" },
+          "description": "File extensions: '.py', '.html', '.yaml'. Default: all known types."
+        }
+      }
+    },
+    "Amendment": {
+      "type": "object",
+      "required": ["version", "at", "by", "summary"],
+      "additionalProperties": false,
+      "properties": {
+        "version": {
+          "type": "string",
+          "pattern": "^v[0-9]+\\.[0-9]+(\\.[0-9]+)?$",
+          "description": "Semantic version of the amendment. Bump minor for clarifications, major for breaking changes that should arguably be a new ADR."
+        },
+        "at": { "type": "string", "format": "date" },
+        "by": { "type": "string" },
+        "summary": {
+          "type": "string",
+          "minLength": 10,
+          "description": "One-line summary of what the amendment changed."
+        },
+        "sections_changed": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Section identifiers (e.g. 'E6', '3.', '8.') that were added or substantively modified."
+        },
+        "rationale": {
+          "type": "string",
+          "description": "Why the amendment was necessary. Often references review findings, audit results, or external feedback."
+        }
+      }
+    },
+    "DecisionDriver": {
+      "type": "object",
+      "required": ["id", "driver", "weight"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^D-[0-9]+$",
+          "description": "Local identifier within this ADR (D-1, D-2, ...)."
+        },
+        "driver": {
+          "type": "string",
+          "minLength": 10,
+          "description": "Concise statement of the force driving the decision."
+        },
+        "weight": {
+          "type": "string",
+          "enum": ["critical", "high", "medium", "low"],
+          "description": "How strongly this driver shaped the outcome. Used by audit to verify supersession logic."
+        },
+        "category": {
+          "type": "string",
+          "enum": ["regulatory", "security", "performance", "cost", "operational", "strategic", "ergonomic"],
+          "description": "Category of concern. Optional but useful for cross-ADR analysis."
+        }
+      }
+    },
+    "OpenQuestion": {
+      "type": "object",
+      "required": ["id", "question"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^Q-[0-9]+$",
+          "description": "Local identifier within this ADR (Q-1, Q-2, ...)."
+        },
+        "question": { "type": "string", "minLength": 10 },
+        "decide_by": {
+          "type": ["string", "null"],
+          "description": "Deadline. Free-form to allow phase references like 'Phase 1' as well as ISO dates."
+        },
+        "owner": {
+          "type": ["string", "null"],
+          "description": "Person accountable for resolving the question."
+        },
+        "status": {
+          "type": "string",
+          "enum": ["open", "in_progress", "resolved", "dropped"],
+          "default": "open"
+        },
+        "resolution": {
+          "type": ["string", "null"],
+          "description": "Filled in when status becomes 'resolved' or 'dropped'."
+        }
+      }
+    },
+    "DeprecationStep": {
+      "type": "object",
+      "required": ["phase", "action", "state"],
+      "additionalProperties": false,
+      "properties": {
+        "phase": {
+          "type": "string",
+          "description": "Phase identifier, e.g. 'D-1' for the first deprecation step."
+        },
+        "action": {
+          "type": "string",
+          "minLength": 5,
+          "description": "What happens in this phase."
+        },
+        "state": {
+          "type": "string",
+          "description": "World state during this phase — what is acceptable, what is not."
+        },
+        "earliest": {
+          "type": ["string", "null"],
+          "description": "Earliest the phase can begin. May reference another phase ('Phase 1 done') or be a date."
+        },
+        "completion_signal": {
+          "type": "string",
+          "description": "Concrete signal that this phase is complete and the next can begin."
+        }
+      }
+    },
+    "SPOFMitigation": {
+      "type": "object",
+      "required": ["component", "measure"],
+      "additionalProperties": false,
+      "properties": {
+        "component": {
+          "type": "string",
+          "description": "What is the SPOF: a database, service, vendor, secret, ..."
+        },
+        "measure": {
+          "type": "string",
+          "description": "Mitigation: 'Automated Backup', 'Graceful Degradation', 'Read-Replica', ..."
+        },
+        "implementation": {
+          "type": "string",
+          "description": "Concrete implementation detail."
+        },
+        "phase": {
+          "type": ["string", "null"],
+          "description": "Roadmap phase when this mitigation is in place."
+        }
+      }
+    }
+  }
+}

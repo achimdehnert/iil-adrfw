@@ -1,0 +1,165 @@
+adr_id: ADR-099
+schema_version: "1.0"
+default_severity: error
+
+rules:
+  - id: tenant-id-bigint
+    title: Use BigIntegerField for tenant_id, never IntegerField
+    severity: error
+    valid_from: "2024-09-15T00:00:00Z"
+    knowledge_from: "2024-09-15T00:00:00Z"
+    retroactive: false
+    applies_to:
+      include_paths: ["**/models.py", "**/models/*.py"]
+      file_types: [".py"]
+      exclude_paths: ["**/migrations/**", "tests/**"]
+    checker:
+      type: ast
+      language: python
+      pattern:
+        match: |
+          ClassDef(bases=[..., Name("Model")|Attribute(attr=Name("Model")), ...]):
+            Assign(targets=[Name("tenant_id")], value=Call(func=Attribute(value=Name("models"), attr=Name("IntegerField"))))
+        where: "not in fixture path"
+        negate: false
+    rationale: >
+      INC-2024-11-23 demonstrated int4 overflow in a tenant_id field. We cap tenant_id
+      capacity at PostgreSQL bigint (~9.2 × 10^18) which is more than sufficient.
+      The performance cost of bigint vs int4 is negligible compared to the cost of
+      a single cross-tenant data leak.
+    fix_suggestions:
+      - description: "Replace IntegerField with BigIntegerField"
+        confidence: 0.95
+        automated: true
+        code_transform: |
+          - tenant_id = models.IntegerField(...)
+          + tenant_id = models.BigIntegerField(...)
+        side_effects:
+          - "Requires migration: AlterField on tenant_id"
+          - "Existing data preserved; widening conversion is lossless"
+    examples:
+      good:
+        - code: "tenant_id = models.BigIntegerField(db_index=True)"
+          comment: "Correct field type. db_index recommended for tenant filter performance."
+      bad:
+        - code: "tenant_id = models.IntegerField()"
+          comment: "Will overflow at 2.1B distinct tenant_ids"
+        - code: "tenant_id = models.PositiveIntegerField()"
+          comment: "Same overflow risk, sign doesn't help"
+    audience_explanations:
+      new_dev: >
+        Always write `models.BigIntegerField()` for tenant_id. Never IntegerField.
+        BigInt holds bigger numbers — that's all you need to know on day one.
+      senior: >
+        We learned the hard way (INC-2024-11-23) that int4 overflow is a real
+        risk in our addressing scheme. The migration cost of widening later is
+        far higher than the negligible runtime cost of bigint now.
+      architect: >
+        The choice of bigint over uuid is deliberate: tenant_id is used as a
+        FK column on hot tables (Invoice, Subscription, AuditEvent) where
+        b-tree fanout matters. UUID v4 destroys index locality. If we ever
+        need globally unique tenant identifiers across regions, layer that
+        as a separate `tenant_uuid` column and keep tenant_id as the FK.
+      auditor: >
+        This control prevents data leakage between tenants caused by integer
+        overflow. The rule has severity 'error' and blocks deploys.
+        Compliance is verified at PR-time via iil-adrfw and at deploy-time
+        via CI. Exemptions require sign-off and have expiry dates.
+    blast_radius_estimator: tenant
+    exemptions: []
+    tags: ["non-negotiable", "data-isolation"]
+
+  - id: tenant-manager-required
+    title: Tenant-owned models use TenantManager as default manager
+    severity: error
+    valid_from: "2024-09-15T00:00:00Z"
+    knowledge_from: "2024-09-15T00:00:00Z"
+    applies_to:
+      include_paths: ["**/models.py", "**/models/*.py"]
+    checker:
+      type: composite
+      operator: all
+      checkers:
+        - type: ast
+          language: python
+          pattern:
+            match: |
+              ClassDef(bases=[..., Name("Model")|..., ...]):
+                Assign(targets=[Name("tenant_id")])
+            negate: false
+        - type: ast
+          language: python
+          pattern:
+            match: |
+              ClassDef:
+                Assign(targets=[Name("objects")], value=Call(func=Name("TenantManager")|Attribute(attr=Name("TenantManager"))))
+            negate: true
+    rationale: >
+      Without TenantManager, raw `Model.objects.all()` calls become tenant-leak
+      vectors. Making the default manager tenant-aware shifts the default from
+      'unsafe' to 'safe' — opting out (RawTenantQuerySet) is the explicit, audited path.
+    fix_suggestions:
+      - description: "Add `objects = TenantManager()` to the model"
+        confidence: 0.85
+        automated: true
+        code_transform: |
+          class MyModel(models.Model):
+              tenant_id = models.BigIntegerField(...)
+              # ... fields ...
+          +   objects = TenantManager()
+    examples:
+      good:
+        - code: |
+            class Invoice(models.Model):
+                tenant_id = models.BigIntegerField(db_index=True)
+                amount = models.DecimalField(...)
+                objects = TenantManager()
+      bad:
+        - code: |
+            class Invoice(models.Model):
+                tenant_id = models.BigIntegerField(db_index=True)
+                amount = models.DecimalField(...)
+                # objects defaults to models.Manager() — UNSAFE
+    audience_explanations:
+      new_dev: >
+        Always add `objects = TenantManager()` to any model that has tenant_id.
+      auditor: >
+        This control implements least-privilege at query level. Default queryset
+        is filtered to current tenant; cross-tenant queries are logged.
+    blast_radius_estimator: tenant
+    tags: ["non-negotiable", "data-isolation"]
+
+  - id: service-layer-explicit-tenant
+    title: Service functions accept tenant_id as explicit parameter
+    severity: warning
+    valid_from: "2024-09-15T00:00:00Z"
+    knowledge_from: "2024-09-15T00:00:00Z"
+    applies_to:
+      include_paths: ["**/services.py", "**/services/*.py", "**/tasks.py"]
+    checker:
+      type: custom
+      entry_point: "iil_adrfw.checkers.django_services:requires_explicit_tenant_id"
+      config:
+        first_param_name: "tenant_id"
+        skip_decorators: ["@internal_only", "@admin_only"]
+    rationale: >
+      Inferring tenant from request state inside services makes them HTTP-bound,
+      hard to test, and easy to misuse from Celery workers. Explicit tenant_id
+      as the first parameter makes the contract visible and audit-friendly.
+    fix_suggestions:
+      - description: "Add tenant_id as the first parameter and pass it down"
+        confidence: 0.6
+        automated: false
+        side_effects:
+          - "All callers must update"
+          - "May require view-layer refactor"
+    audience_explanations:
+      new_dev: >
+        Service functions look like: def create_invoice(tenant_id: int, ...).
+        First param is always tenant_id.
+      architect: >
+        This makes the tenant boundary a function-signature concern, not an
+        ambient-context concern. Composes cleanly with sync/async, Celery,
+        and tests without HTTP fixtures.
+    blast_radius_estimator: service
+    tags: ["architectural-boundary"]
