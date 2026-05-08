@@ -2,6 +2,7 @@
 
 **ADR Framework for the IIL Platform** — schema validation, loader normalization, constitution graph, audit tooling.
 
+[![PyPI](https://img.shields.io/pypi/v/iil-adrfw.svg)](https://pypi.org/project/iil-adrfw/)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -17,20 +18,21 @@
 
 ## Real-world validation
 
-Tested against **156 real platform ADRs**:
+Tested against **156 real platform ADRs** (as of v0.3.1):
 
 | Mode | Result |
 |---|---|
-| Strict load (validate=True) | **152/156 (97.4%)** |
-| Unit tests | **22/22 green** |
-| Remaining failures | 4x broken YAML (unfixable) |
+| Schema validation | **156/156 (100%)** |
+| Staleness (>6mo) | 0 stale |
+| Broken references | 0 |
+| Dependency edges | 31 |
 
 ## Installation
 
 ```bash
-pip install -e .
+pip install iil-adrfw
 
-# With dev dependencies:
+# From source with dev dependencies:
 pip install -e ".[dev]"
 ```
 
@@ -55,18 +57,32 @@ raw_adr = load_adr(path, schemas, raw=True)
 ### CLI
 
 ```bash
-# Validate ADRs
-iil-adrfw validate docs/adr/ --schemas schemas/
+# Validate all ADR frontmatters against schema v3
+iil-adrfw validate docs/adr/
 
-# Audit for staleness, missing evidence
-iil-adrfw audit docs/adr/ --schemas schemas/
+# Check staleness (>6 months), broken references, missing reviews
+iil-adrfw staleness docs/adr/ --months 6
+
+# Generate dependency graph (text, DOT, or JSON)
+iil-adrfw graph docs/adr/ --dot > graph.dot
+
+# Export Outline-compatible markdown registry
+iil-adrfw export docs/adr/ -o adr-registry.md
+
+# Audit constitution health
+iil-adrfw audit docs/adr/
+
+# Query ADRs by question/domain
+iil-adrfw query docs/adr/ "Which ADR governs deployment?"
 ```
 
-### MCP Server
+### MCP Server (11 tools)
 
 ```bash
-iil-adrfw-mcp
+iil-adrfw-mcp  # stdio transport, register in Windsurf mcp_config.json
 ```
+
+Tools: `adr_validate`, `adr_staleness`, `adr_impact`, `adr_check`, `adr_explain`, `adr_query`, `adr_audit`, `adr_validate_cross_repo`, `adr_propose`, `adr_diff`, `adr_narrate`
 
 ## Schema v3 highlights
 
