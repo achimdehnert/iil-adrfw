@@ -906,6 +906,59 @@ def list_adrs() -> dict:
     return _do_list_adrs()
 
 
+# --- Tool: adr_validate (schema validation) ---
+
+
+class ValidateRequest(BaseModel):
+    adr_dir: str | None = Field(
+        default=None,
+        description="Directory containing ADR-*.md files. Defaults to IIL_ADRFW_ADRS_DIR env.",
+    )
+
+
+class ValidateResponse(BaseModel):
+    total: int
+    passed: int
+    failed: int
+    percent: float
+    failures: list[dict]
+
+
+def _do_validate(req: ValidateRequest) -> ValidateResponse:
+    from iil_adrfw.persistence import load_adr, ADRLoadError
+    from iil_adrfw.schemas import get_schema_dir
+
+    adr_dir = Path(req.adr_dir) if req.adr_dir else _adrs_dir()
+    schema_dir = get_schema_dir()
+
+    md_files = sorted(adr_dir.glob("ADR-*.md"))
+    ok, failures = [], []
+    for md in md_files:
+        try:
+            load_adr(md, schema_dir, validate=True)
+            ok.append(md.name)
+        except ADRLoadError as e:
+            msg = str(e).split('\n')[1] if '\n' in str(e) else str(e)[:120]
+            failures.append({"file": md.name, "error": msg})
+        except Exception as e:
+            failures.append({"file": md.name, "error": f"{type(e).__name__}: {str(e)[:100]}"})
+
+    total = len(ok) + len(failures)
+    return ValidateResponse(
+        total=total,
+        passed=len(ok),
+        failed=len(failures),
+        percent=round(100 * len(ok) / total, 1) if total else 0,
+        failures=failures,
+    )
+
+
+@mcp.tool
+def adr_validate(req: ValidateRequest) -> ValidateResponse:
+    """Validate all ADR frontmatters against schema v3. Returns pass/fail count and failures."""
+    return _do_validate(req)
+
+
 def main() -> None:
     """Entry point for `iil-adrfw-mcp`."""
     mcp.run()

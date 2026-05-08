@@ -1,6 +1,6 @@
 [project]
 name = "iil-adrfw"
-version = "0.2.2"
+version = "0.3.0"
 description = "Architectural Decision Record framework with bi-temporal validity, AST checkers, and FastMCP integration"
 readme = "README.md"
 requires-python = ">=3.12"
