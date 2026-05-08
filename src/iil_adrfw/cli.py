@@ -357,7 +357,263 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     return 1 if failures else 0
 
 
+# ─── adr_staleness (age + drift check) ───────────────────────────
+
+
+def _cmd_staleness(args: argparse.Namespace) -> int:
+    """Check ADRs for staleness (age, missing reviews, broken references)."""
+    from datetime import date, timedelta
+
+    from iil_adrfw.persistence import load_adr, ADRLoadError
+    from iil_adrfw.schemas import get_schema_dir
+
+    adr_dir = Path(args.adr_dir)
+    schema_dir = Path(args.schema_dir) if args.schema_dir else get_schema_dir()
+    max_months = args.months
+
+    if not adr_dir.is_dir():
+        print(f"error: {adr_dir} is not a directory", file=sys.stderr)
+        return 2
+
+    md_files = sorted(adr_dir.glob("ADR-*.md"))
+    if not md_files:
+        print(f"error: no ADR-*.md files found", file=sys.stderr)
+        return 2
+
+    today = date.today()
+    threshold = today - timedelta(days=30 * max_months)
+    findings = []
+    all_ids = set()
+    adrs_data = []
+
+    # Phase 1: Load all ADRs and extract metadata
+    for md in md_files:
+        try:
+            adr = load_adr(md, schema_dir, validate=False)
+            adr_id = adr.id
+            all_ids.add(adr_id)
+            adrs_data.append(adr)
+
+            # Staleness: check decision_date
+            adr_date = None
+            if hasattr(adr, 'decision_date') and adr.decision_date:
+                try:
+                    adr_date = date.fromisoformat(str(adr.decision_date)[:10])
+                except (ValueError, TypeError):
+                    pass
+
+            status = adr.status.value if hasattr(adr.status, 'value') else str(adr.status)
+
+            # Skip deprecated/superseded for staleness
+            if status.lower() in ('deprecated', 'superseded', 'rejected'):
+                continue
+
+            if adr_date and adr_date < threshold:
+                age_months = (today - adr_date).days // 30
+                findings.append({
+                    "adr_id": adr_id,
+                    "type": "stale",
+                    "severity": "warning",
+                    "message": f"Last decision date {adr_date} ({age_months}mo ago, threshold: {max_months}mo)",
+                })
+
+            # Missing review_status on accepted ADRs
+            review = getattr(adr, 'review_status', None)
+            if status.lower() == 'accepted' and not review:
+                findings.append({
+                    "adr_id": adr_id,
+                    "type": "no_review",
+                    "severity": "info",
+                    "message": "Accepted ADR without review_status field",
+                })
+
+        except (ADRLoadError, Exception):
+            continue
+
+    # Phase 2: Reference drift — check if referenced ADRs exist
+    for adr in adrs_data:
+        adr_id = adr.id
+        # Check superseded_by (can be string or list)
+        sup_by = getattr(adr, 'superseded_by', None)
+        if sup_by:
+            refs = sup_by if isinstance(sup_by, (list, tuple)) else [sup_by]
+            for ref in refs:
+                ref_str = str(ref).strip()
+                if ref_str and ref_str not in all_ids:
+                    findings.append({
+                        "adr_id": adr_id,
+                        "type": "broken_ref",
+                        "severity": "error",
+                        "message": f"superseded_by references '{ref_str}' which does not exist",
+                    })
+        # Check depends_on
+        deps = getattr(adr, 'depends_on', None) or []
+        for dep in deps:
+            if dep not in all_ids:
+                findings.append({
+                    "adr_id": adr_id,
+                    "type": "broken_ref",
+                    "severity": "warning",
+                    "message": f"depends_on references '{dep}' which does not exist",
+                })
+        # Check related
+        related = getattr(adr, 'related', None) or []
+        for rel in related:
+            if rel.startswith("ADR-") and rel not in all_ids:
+                findings.append({
+                    "adr_id": adr_id,
+                    "type": "broken_ref",
+                    "severity": "info",
+                    "message": f"related references '{rel}' which does not exist",
+                })
+
+    # Output
+    stale_count = len([f for f in findings if f["type"] == "stale"])
+    ref_count = len([f for f in findings if f["type"] == "broken_ref"])
+    review_count = len([f for f in findings if f["type"] == "no_review"])
+
+    if args.json:
+        _print_json({
+            "total_adrs": len(md_files),
+            "stale_count": stale_count,
+            "broken_refs": ref_count,
+            "missing_reviews": review_count,
+            "findings": findings,
+        })
+    else:
+        print(f"Staleness Report: {len(md_files)} ADRs scanned (threshold: {max_months}mo)\n")
+        print(f"  Stale ADRs:       {stale_count}")
+        print(f"  Broken refs:      {ref_count}")
+        print(f"  Missing reviews:  {review_count}")
+        if findings:
+            print(f"\nFindings ({len(findings)}):")
+            for f in sorted(findings, key=lambda x: (x["severity"], x["adr_id"])):
+                print(f"  [{f['severity']:7}] {f['adr_id']}: {f['message']}")
+        else:
+            print("\n  ✓ No staleness or drift issues found")
+
+    return 1 if any(f["severity"] == "error" for f in findings) else 0
+
+
 # ─── Argument parser ────────────────────────────────────────────
+
+
+def _add_staleness_parser(sub):
+    p = sub.add_parser("staleness", help="Check ADRs for staleness and reference drift")
+    p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
+    p.add_argument("--months", type=int, default=6,
+                   help="Staleness threshold in months (default: 6)")
+    p.add_argument("--schema-dir", dest="schema_dir",
+                   help="Directory containing JSON schema files (default: auto-detect)")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=_cmd_staleness)
+
+
+# ─── adr_graph (dependency visualization) ────────────────────────
+
+
+def _cmd_graph(args: argparse.Namespace) -> int:
+    """Generate ADR dependency graph in DOT or text format."""
+    from iil_adrfw.persistence import load_adr, ADRLoadError
+    from iil_adrfw.schemas import get_schema_dir
+
+    adr_dir = Path(args.adr_dir)
+    schema_dir = Path(args.schema_dir) if args.schema_dir else get_schema_dir()
+
+    if not adr_dir.is_dir():
+        print(f"error: {adr_dir} is not a directory", file=sys.stderr)
+        return 2
+
+    md_files = sorted(adr_dir.glob("ADR-*.md"))
+    adrs_meta = []
+
+    for md in md_files:
+        try:
+            adr = load_adr(md, schema_dir, validate=False)
+            adrs_meta.append({
+                "id": adr.id,
+                "title": adr.title[:40],
+                "status": adr.status.value if hasattr(adr.status, 'value') else str(adr.status),
+                "superseded_by": getattr(adr, 'superseded_by', None),
+                "depends_on": getattr(adr, 'depends_on', None) or [],
+                "related": getattr(adr, 'related', None) or [],
+                "amends": getattr(adr, 'amends', None) or [],
+            })
+        except Exception:
+            continue
+
+    # Build edges
+    edges = []
+    for adr in adrs_meta:
+        aid = adr["id"]
+        sup = adr["superseded_by"]
+        if sup:
+            refs = sup if isinstance(sup, (list, tuple)) else [sup]
+            for r in refs:
+                edges.append((aid, str(r).strip(), "superseded_by"))
+        for dep in adr["depends_on"]:
+            edges.append((aid, dep, "depends_on"))
+        for rel in adr["related"]:
+            if rel.startswith("ADR-"):
+                edges.append((aid, rel, "related"))
+        for am in adr["amends"]:
+            edges.append((aid, am, "amends"))
+
+    if args.dot:
+        # DOT format for Graphviz
+        print("digraph ADR_Dependencies {")
+        print("  rankdir=LR;")
+        print("  node [shape=box, style=filled, fontsize=10];")
+        status_colors = {
+            "accepted": "#d4edda", "proposed": "#fff3cd",
+            "draft": "#e2e3e5", "deprecated": "#ffeeba",
+            "superseded": "#f8d7da", "rejected": "#f5c6cb",
+        }
+        for adr in adrs_meta:
+            color = status_colors.get(adr["status"], "#ffffff")
+            label = f'{adr["id"]}\\n{adr["title"]}'
+            print(f'  "{adr["id"]}" [label="{label}", fillcolor="{color}"];')
+        edge_styles = {
+            "superseded_by": "[color=red, style=dashed, label=supersedes]",
+            "depends_on": "[color=blue, label=depends]",
+            "related": "[color=gray, style=dotted]",
+            "amends": "[color=orange, label=amends]",
+        }
+        for src, dst, rel in edges:
+            style = edge_styles.get(rel, "")
+            print(f'  "{src}" -> "{dst}" {style};')
+        print("}")
+    elif args.json:
+        _print_json({
+            "nodes": len(adrs_meta),
+            "edges": len(edges),
+            "adrs": [{"id": a["id"], "status": a["status"]} for a in adrs_meta],
+            "relationships": [{"from": s, "to": d, "type": t} for s, d, t in edges],
+        })
+    else:
+        print(f"ADR Dependency Graph: {len(adrs_meta)} nodes, {len(edges)} edges\n")
+        if not edges:
+            print("  No dependencies found.")
+        else:
+            by_type = {}
+            for s, d, t in edges:
+                by_type.setdefault(t, []).append((s, d))
+            for rel_type, rels in sorted(by_type.items()):
+                print(f"  {rel_type} ({len(rels)}):")
+                for s, d in sorted(rels):
+                    print(f"    {s} → {d}")
+
+    return 0
+
+
+def _add_graph_parser(sub):
+    p = sub.add_parser("graph", help="Generate ADR dependency graph")
+    p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
+    p.add_argument("--schema-dir", dest="schema_dir",
+                   help="Directory containing JSON schema files (default: auto-detect)")
+    p.add_argument("--dot", action="store_true", help="Output in Graphviz DOT format")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=_cmd_graph)
 
 
 def _add_validate_parser(sub):
@@ -461,6 +717,8 @@ def main() -> None:
     sub = p.add_subparsers(dest="cmd", required=True)
 
     _add_validate_parser(sub)
+    _add_staleness_parser(sub)
+    _add_graph_parser(sub)
     _add_check_parser(sub)
     _add_explain_parser(sub)
     _add_list_parser(sub)

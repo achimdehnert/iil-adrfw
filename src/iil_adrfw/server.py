@@ -959,6 +959,197 @@ def adr_validate(req: ValidateRequest) -> ValidateResponse:
     return _do_validate(req)
 
 
+# --- Tool: adr_staleness ---
+
+
+class StalenessRequest(BaseModel):
+    adr_dir: str | None = Field(
+        default=None,
+        description="Directory containing ADR-*.md files. Defaults to IIL_ADRFW_ADRS_DIR env.",
+    )
+    months: int = Field(default=6, description="Staleness threshold in months")
+
+
+class StalenessResponse(BaseModel):
+    total_adrs: int
+    stale_count: int
+    broken_refs: int
+    missing_reviews: int
+    findings: list[dict]
+
+
+@mcp.tool
+def adr_staleness(req: StalenessRequest) -> StalenessResponse:
+    """Check ADRs for staleness (age > threshold) and reference drift (broken superseded_by, depends_on)."""
+    from datetime import date, timedelta
+
+    from iil_adrfw.persistence import load_adr, ADRLoadError
+    from iil_adrfw.schemas import get_schema_dir
+
+    adr_dir = Path(req.adr_dir) if req.adr_dir else _adrs_dir()
+    schema_dir = get_schema_dir()
+    today = date.today()
+    threshold = today - timedelta(days=30 * req.months)
+
+    md_files = sorted(adr_dir.glob("ADR-*.md"))
+    findings = []
+    all_ids = set()
+    adrs_data = []
+
+    for md in md_files:
+        try:
+            adr = load_adr(md, schema_dir, validate=False)
+            all_ids.add(adr.id)
+            adrs_data.append(adr)
+
+            adr_date = None
+            if hasattr(adr, 'decision_date') and adr.decision_date:
+                try:
+                    adr_date = date.fromisoformat(str(adr.decision_date)[:10])
+                except (ValueError, TypeError):
+                    pass
+
+            status = adr.status.value if hasattr(adr.status, 'value') else str(adr.status)
+            if status.lower() in ('deprecated', 'superseded', 'rejected'):
+                continue
+
+            if adr_date and adr_date < threshold:
+                age_months = (today - adr_date).days // 30
+                findings.append({"adr_id": adr.id, "type": "stale", "severity": "warning",
+                                 "message": f"Decision date {adr_date} ({age_months}mo ago)"})
+
+            review = getattr(adr, 'review_status', None)
+            if status.lower() == 'accepted' and not review:
+                findings.append({"adr_id": adr.id, "type": "no_review", "severity": "info",
+                                 "message": "Accepted ADR without review_status"})
+        except Exception:
+            continue
+
+    for adr in adrs_data:
+        sup_by = getattr(adr, 'superseded_by', None)
+        if sup_by:
+            refs = sup_by if isinstance(sup_by, (list, tuple)) else [sup_by]
+            for ref in refs:
+                ref_str = str(ref).strip()
+                if ref_str and ref_str not in all_ids:
+                    findings.append({"adr_id": adr.id, "type": "broken_ref", "severity": "error",
+                                     "message": f"superseded_by '{ref_str}' not found"})
+
+    return StalenessResponse(
+        total_adrs=len(md_files),
+        stale_count=len([f for f in findings if f["type"] == "stale"]),
+        broken_refs=len([f for f in findings if f["type"] == "broken_ref"]),
+        missing_reviews=len([f for f in findings if f["type"] == "no_review"]),
+        findings=findings,
+    )
+
+
+# --- Tool: adr_impact (Code → ADR mapping) ---
+
+
+class ImpactRequest(BaseModel):
+    file_path: str = Field(description="File path to check (e.g. 'apps/billing/models.py')")
+    repo: str | None = Field(default=None, description="Repo name for scope filtering")
+
+
+class ImpactADR(BaseModel):
+    adr_id: str
+    title: str
+    status: str
+    relevance: str  # "direct" | "domain" | "general"
+    matched_by: str  # what triggered the match
+
+
+class ImpactResponse(BaseModel):
+    file_path: str
+    applicable_adrs: list[ImpactADR]
+    total_applicable: int
+
+
+@mcp.tool
+def adr_impact(req: ImpactRequest) -> ImpactResponse:
+    """Given a file path, find which ADRs apply. Matches on scope patterns, domains, and repo references."""
+    import fnmatch
+    import re
+
+    adrs = _load_constitution()
+    file_p = req.file_path
+    applicable = []
+
+    # Infer domain from path
+    path_domains = set()
+    if "models" in file_p:
+        path_domains.update(["django/models", "database"])
+    if "views" in file_p:
+        path_domains.update(["django/views", "htmx"])
+    if "service" in file_p:
+        path_domains.update(["django/services", "service-layer"])
+    if "template" in file_p or ".html" in file_p:
+        path_domains.update(["htmx", "templates"])
+    if "docker" in file_p.lower() or "compose" in file_p.lower():
+        path_domains.update(["deployment", "docker"])
+    if "test" in file_p:
+        path_domains.update(["testing"])
+    if ".github" in file_p or "ci" in file_p.lower():
+        path_domains.update(["ci-cd", "deployment"])
+    if "migration" in file_p:
+        path_domains.update(["database", "migrations"])
+
+    for adr in adrs:
+        adr_id = adr.id
+        title = adr.title
+        status = adr.status.value if hasattr(adr.status, 'value') else str(adr.status)
+
+        # Skip non-active ADRs
+        if status.lower() in ('deprecated', 'superseded', 'rejected'):
+            continue
+
+        # Check scope patterns
+        scope = getattr(adr, 'scope', None)
+        if scope:
+            scope_str = str(scope) if not hasattr(scope, 'glob_patterns') else ""
+            patterns = getattr(scope, 'glob_patterns', []) or []
+            if not patterns and scope_str:
+                patterns = [p.strip() for p in scope_str.split(",") if p.strip()]
+
+            for pattern in patterns:
+                if fnmatch.fnmatch(file_p, pattern) or fnmatch.fnmatch(file_p, f"**/{pattern}"):
+                    applicable.append(ImpactADR(
+                        adr_id=adr_id, title=title, status=status,
+                        relevance="direct", matched_by=f"scope: {pattern}",
+                    ))
+                    break
+
+        # Check domain overlap
+        adr_domains = set(getattr(adr, 'domains', []) or [])
+        overlap = path_domains & adr_domains
+        if overlap and not any(a.adr_id == adr_id for a in applicable):
+            applicable.append(ImpactADR(
+                adr_id=adr_id, title=title, status=status,
+                relevance="domain", matched_by=f"domains: {', '.join(overlap)}",
+            ))
+
+        # Check repo reference
+        if req.repo:
+            consumers = getattr(adr, 'consumers', []) or []
+            if req.repo in consumers or req.repo in str(getattr(adr, 'scope', '')):
+                if not any(a.adr_id == adr_id for a in applicable):
+                    applicable.append(ImpactADR(
+                        adr_id=adr_id, title=title, status=status,
+                        relevance="general", matched_by=f"repo: {req.repo}",
+                    ))
+
+    # Sort: direct first, then domain, then general
+    order = {"direct": 0, "domain": 1, "general": 2}
+    applicable.sort(key=lambda a: order.get(a.relevance, 9))
+
+    return ImpactResponse(
+        file_path=file_p,
+        applicable_adrs=applicable,
+        total_applicable=len(applicable),
+    )
+
+
 def main() -> None:
     """Entry point for `iil-adrfw-mcp`."""
     mcp.run()
