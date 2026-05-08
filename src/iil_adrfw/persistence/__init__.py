@@ -232,10 +232,10 @@ def _normalize_frontmatter(
     rs = frontmatter.get("review_status")
     if isinstance(rs, str) and rs not in ("pending", "in_review", "approved", "rejected", "stale"):
         rs_lower = rs.strip().lower()
-        if rs_lower.startswith("approved"):
+        if rs_lower in ("accepted", "approved"):
             frontmatter["review_status"] = "approved"
-        elif rs_lower.startswith("review"):
-            frontmatter["review_status"] = "approved"  # 'reviewed — ...' → approved
+        elif "review" in rs_lower:
+            frontmatter["review_status"] = "approved"  # 'reviewed — ...' / 'v1 reviewed' → approved
         elif rs_lower.startswith("pending"):
             frontmatter["review_status"] = "pending"
         elif rs_lower.startswith("stale"):
