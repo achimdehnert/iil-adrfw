@@ -1,0 +1,284 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://iil.gmbh/schemas/adrfw/adr_rules.v1.schema.json",
+  "title": "ADR Executable Rules",
+  "description": "Sibling file to an ADR markdown. Contains machine-checkable rules with bi-temporal validity, AST-based checkers, and differential-diagnostic metadata.",
+  "type": "object",
+  "required": ["adr_id", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "adr_id": {
+      "type": "string",
+      "pattern": "^ADR-[0-9]{3,4}$",
+      "description": "Must match the parent ADR. Cross-ADR rules are not allowed — split them."
+    },
+    "schema_version": {
+      "type": "string",
+      "enum": ["1.0"],
+      "default": "1.0"
+    },
+    "default_severity": {
+      "type": "string",
+      "enum": ["info", "warning", "error", "critical"],
+      "default": "warning",
+      "description": "Used by rules that don't override it."
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/Rule" }
+    }
+  },
+  "$defs": {
+    "Rule": {
+      "type": "object",
+      "required": ["id", "title", "checker", "rationale"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{2,60}$",
+          "description": "Short slug, unique within this rules-file. Combined with adr_id forms global rule_id like 'ADR-099/tenant-id-bigint'."
+        },
+        "title": {
+          "type": "string",
+          "minLength": 8,
+          "maxLength": 120,
+          "description": "Imperative one-liner: 'Use BigIntegerField for tenant_id'."
+        },
+        "severity": {
+          "type": "string",
+          "enum": ["info", "warning", "error", "critical"],
+          "description": "Override of default_severity. 'critical' blocks merges; 'error' blocks deploys; 'warning' shows in PR; 'info' is informational."
+        },
+        "valid_from": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Bi-temporal: when this specific rule starts applying. Defaults to ADR's valid_from."
+        },
+        "valid_to": {
+          "type": ["string", "null"],
+          "format": "date-time"
+        },
+        "knowledge_from": {
+          "type": "string",
+          "format": "date-time",
+          "description": "When we learned this rule should exist. Differs from valid_from for retroactive rules."
+        },
+        "retroactive": {
+          "type": "boolean",
+          "default": false
+        },
+        "applies_to": {
+          "$ref": "https://iil.gmbh/schemas/adrfw/adr_frontmatter.v1.schema.json#/$defs/Scope",
+          "description": "Override of the ADR's scope for this specific rule. Common: a rule applies only to '.py' files even though the ADR covers more."
+        },
+        "checker": { "$ref": "#/$defs/Checker" },
+        "rationale": {
+          "type": "string",
+          "minLength": 20,
+          "description": "WHY this rule exists. Used in 'adr_explain' tool. Should reference incidents, performance data, or principles — not just restate the rule."
+        },
+        "fix_suggestions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/FixSuggestion" },
+          "description": "Ranked list of how to fix violations. First item is the recommended fix."
+        },
+        "examples": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "good": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/CodeExample" }
+            },
+            "bad": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/CodeExample" }
+            }
+          }
+        },
+        "audience_explanations": {
+          "type": "object",
+          "description": "Audience-tailored explanations used by adr_explain. Keys are audience identifiers.",
+          "additionalProperties": false,
+          "properties": {
+            "new_dev": { "type": "string" },
+            "senior":  { "type": "string" },
+            "architect": { "type": "string" },
+            "auditor": { "type": "string" }
+          }
+        },
+        "blast_radius_estimator": {
+          "type": "string",
+          "enum": ["file", "module", "service", "tenant", "platform"],
+          "description": "How far damage typically spreads when this rule is violated. Drives risk scoring."
+        },
+        "exemptions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/Exemption" },
+          "description": "Documented carve-outs. Time-limited by default — exemptions without expiry are flagged."
+        },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "Checker": {
+      "oneOf": [
+        { "$ref": "#/$defs/ASTChecker" },
+        { "$ref": "#/$defs/RegexChecker" },
+        { "$ref": "#/$defs/ConfigChecker" },
+        { "$ref": "#/$defs/CompositeChecker" },
+        { "$ref": "#/$defs/CustomChecker" }
+      ],
+      "description": "How the rule is actually checked. AST is preferred over regex; regex is preferred over LLM."
+    },
+    "ASTChecker": {
+      "type": "object",
+      "required": ["type", "language", "pattern"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "ast" },
+        "language": { "type": "string", "enum": ["python", "html", "javascript", "typescript", "yaml", "toml"] },
+        "pattern": {
+          "type": "object",
+          "description": "Pattern using libcst-style matchers for Python; lxml XPath for HTML; tree-sitter queries for JS/TS.",
+          "required": ["match"],
+          "properties": {
+            "match": { "type": "string" },
+            "where": { "type": "string", "description": "Additional predicate, e.g. 'parent.is_class_def(Model)'" },
+            "negate": { "type": "boolean", "default": false, "description": "Violation when match SUCCEEDS (true) or FAILS (false). Default: violation when MATCH succeeds, since most checkers describe what is forbidden." }
+          }
+        },
+        "extract": {
+          "type": "object",
+          "description": "What to extract from the matched node for use in diagnostic templates.",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "RegexChecker": {
+      "type": "object",
+      "required": ["type", "pattern"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "regex" },
+        "pattern": { "type": "string" },
+        "flags": { "type": "string", "description": "e.g. 'im' for case-insensitive multiline" },
+        "negate": { "type": "boolean", "default": false }
+      }
+    },
+    "ConfigChecker": {
+      "type": "object",
+      "required": ["type", "format", "path", "assertion"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "config" },
+        "format": { "type": "string", "enum": ["yaml", "toml", "json", "ini", "env"] },
+        "path": { "type": "string", "description": "File path glob, e.g. 'pyproject.toml' or 'docker-compose*.yml'" },
+        "assertion": {
+          "type": "object",
+          "description": "JMESPath or JSONPath expression with expected value. Example: { jmespath: 'project.dependencies', contains: 'django>=5.0' }"
+        }
+      }
+    },
+    "CompositeChecker": {
+      "type": "object",
+      "required": ["type", "operator", "checkers"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "composite" },
+        "operator": { "type": "string", "enum": ["all", "any", "none"] },
+        "checkers": {
+          "type": "array",
+          "minItems": 2,
+          "items": { "$ref": "#/$defs/Checker" }
+        }
+      }
+    },
+    "CustomChecker": {
+      "type": "object",
+      "required": ["type", "entry_point"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "custom" },
+        "entry_point": {
+          "type": "string",
+          "pattern": "^[a-z_][a-z0-9_]*(\\.[a-z_][a-z0-9_]*)*:[a-z_][a-z0-9_]*$",
+          "description": "Python entry point: 'iil_adrfw.checkers.django_models:tenant_id_bigint'. Must implement the ASTChecker protocol."
+        },
+        "config": { "type": "object", "description": "Arbitrary config passed to the checker." }
+      }
+    },
+    "FixSuggestion": {
+      "type": "object",
+      "required": ["description"],
+      "additionalProperties": false,
+      "properties": {
+        "description": { "type": "string" },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "description": "How confident we are this fix is correct without human review. <0.7 should be human-reviewed."
+        },
+        "automated": {
+          "type": "boolean",
+          "default": false,
+          "description": "If true, can be applied by adr_shadow_pr without human input."
+        },
+        "code_transform": {
+          "type": "string",
+          "description": "Diff or libcst transform spec describing the change."
+        },
+        "side_effects": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "What else needs to change: 'requires migration', 'breaks API', 'needs test update'."
+        }
+      }
+    },
+    "CodeExample": {
+      "type": "object",
+      "required": ["code"],
+      "additionalProperties": false,
+      "properties": {
+        "code": { "type": "string" },
+        "language": { "type": "string", "default": "python" },
+        "comment": { "type": "string", "description": "Why this is good/bad." },
+        "real_violation": {
+          "type": "object",
+          "description": "If from a real codebase, link to it.",
+          "properties": {
+            "repo": { "type": "string" },
+            "commit": { "type": "string" },
+            "path": { "type": "string" },
+            "line": { "type": "integer" }
+          }
+        }
+      }
+    },
+    "Exemption": {
+      "type": "object",
+      "required": ["scope", "reason", "granted_at", "granted_by"],
+      "additionalProperties": false,
+      "properties": {
+        "scope": { "$ref": "https://iil.gmbh/schemas/adrfw/adr_frontmatter.v1.schema.json#/$defs/Scope" },
+        "reason": { "type": "string", "minLength": 20 },
+        "granted_at": { "type": "string", "format": "date-time" },
+        "granted_by": { "type": "string" },
+        "expires_at": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "If null, exemption is permanent — flagged in audits as suspicious."
+        },
+        "review_required_at": {
+          "type": ["string", "null"],
+          "format": "date"
+        }
+      }
+    }
+  }
+}

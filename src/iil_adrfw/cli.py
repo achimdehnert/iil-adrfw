@@ -311,9 +311,10 @@ def _cmd_narrate(args: argparse.Namespace) -> int:
 def _cmd_validate(args: argparse.Namespace) -> int:
     """Validate ADR frontmatter against schema v3."""
     from iil_adrfw.persistence import load_adr, ADRLoadError
+    from iil_adrfw.schemas import get_schema_dir
 
     adr_dir = Path(args.adr_dir)
-    schema_dir = Path(args.schema_dir) if args.schema_dir else adr_dir.parent.parent / "schemas"
+    schema_dir = Path(args.schema_dir) if args.schema_dir else get_schema_dir()
 
     if not adr_dir.is_dir():
         print(f"error: {adr_dir} is not a directory", file=sys.stderr)
