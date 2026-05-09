@@ -333,6 +333,82 @@ def audit_conflict_pairs(graph: ConstitutionGraph) -> list[AuditFinding]:
     return findings
 
 
+def audit_redundancy(graph: ConstitutionGraph) -> list[AuditFinding]:
+    """Find ADR pairs that may be redundant (consolidation candidates).
+
+    Conditions for a finding:
+    - Both ADRs are active (accepted/experimental)
+    - They share at least one domain tag
+    - Neither supersedes nor consolidates the other
+    - Optionally: title token overlap > 30% (boosts confidence)
+
+    This is deliberately conservative — severity is 'info' to avoid
+    false positives blocking workflows.
+    """
+    from iil_adrfw.graph import _tokenize
+
+    findings: list[AuditFinding] = []
+    active = [a for a in graph.adrs if a.status in (Status.ACCEPTED, Status.EXPERIMENTAL)]
+    seen_pairs: set[tuple[str, str]] = set()
+
+    for i, a in enumerate(active):
+        if not a.domains:
+            continue
+        a_domain_set = set(a.domains)
+        a_title_tokens = _tokenize(a.title)
+        # Collect what A already relates to
+        a_related = set()
+        for ref in a.supersedes + a.superseded_by + a.consolidates:
+            a_related.add(_parse_ref(ref)[0])
+
+        for b in active[i + 1:]:
+            if not b.domains:
+                continue
+            pair_key = (min(a.id, b.id), max(a.id, b.id))
+            if pair_key in seen_pairs:
+                continue
+
+            b_domain_set = set(b.domains)
+            shared_domains = a_domain_set & b_domain_set
+            if not shared_domains:
+                continue
+
+            # Skip if one already references the other
+            b_related = set()
+            for ref in b.supersedes + b.superseded_by + b.consolidates:
+                b_related.add(_parse_ref(ref)[0])
+            if b.id in a_related or a.id in b_related:
+                continue
+
+            # Title token overlap as confidence booster
+            b_title_tokens = _tokenize(b.title)
+            if a_title_tokens and b_title_tokens:
+                union = a_title_tokens | b_title_tokens
+                title_overlap = len(a_title_tokens & b_title_tokens) / len(union) if union else 0.0
+            else:
+                title_overlap = 0.0
+
+            # Filter: require either 2+ shared domains, or 1 shared domain + title overlap > 0.3
+            if len(shared_domains) >= 2 or (len(shared_domains) >= 1 and title_overlap > 0.3):
+                seen_pairs.add(pair_key)
+                findings.append(AuditFinding(
+                    auditor="redundancy_detector",
+                    severity=FindingSeverity.INFO,
+                    affected_adrs=(a.id, b.id),
+                    description=(
+                        f"Consolidation candidate: {a.id} ({a.title!r}) and {b.id} ({b.title!r}) "
+                        f"share domain(s) {sorted(shared_domains)}, title overlap {title_overlap:.0%}, "
+                        f"both active, no supersession link"
+                    ),
+                    proposed_resolution=(
+                        f"Consider consolidating into one ADR, or add explicit "
+                        f"'depends_on'/'supersedes' relationship to clarify independence"
+                    ),
+                    evidence=tuple(sorted(shared_domains)),
+                ))
+    return findings
+
+
 # --- Health snapshot ---
 
 
@@ -400,6 +476,7 @@ _AUDITORS = {
     "coverage": audit_coverage,
     "open_question_aging": audit_open_question_aging,
     "conflict": audit_conflict_pairs,
+    "redundancy_detector": audit_redundancy,
 }
 
 

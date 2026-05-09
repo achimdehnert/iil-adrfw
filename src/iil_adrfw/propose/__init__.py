@@ -94,27 +94,63 @@ def _next_adr_id(graph: ConstitutionGraph, requested: str | None = None) -> str:
 def _detect_duplicate_title(
     graph: ConstitutionGraph,
     title: str,
+    rationale_summary: str = "",
     threshold: float = 0.7,
+    block_threshold: float = 0.85,
 ) -> list[ProposalConflict]:
-    """Heuristic: token overlap between proposed title and any active ADR title."""
+    """Heuristic: token overlap between proposed title and any active ADR title.
+
+    - overlap >= block_threshold (default 0.85): severity='error' → blocks_publish
+    - overlap >= threshold (default 0.7): severity='warning' → advisory
+
+    Additionally checks rationale_summary overlap if provided.
+    """
     findings: list[ProposalConflict] = []
     proposed_tokens = _tokenize(title)
     if not proposed_tokens:
         return findings
+    proposed_rationale_tokens = _tokenize(rationale_summary) if rationale_summary else set()
+
     for adr in graph.adrs:
         if adr.status in (Status.SUPERSEDED, Status.DEPRECATED, Status.REJECTED):
             continue
         existing_tokens = _tokenize(adr.title)
         if not existing_tokens:
             continue
-        overlap = len(proposed_tokens & existing_tokens) / len(proposed_tokens | existing_tokens)
-        if overlap >= threshold:
+        title_overlap = len(proposed_tokens & existing_tokens) / len(proposed_tokens | existing_tokens)
+
+        # Boost: if rationale also overlaps heavily, increase confidence
+        rationale_overlap = 0.0
+        if proposed_rationale_tokens and adr.rationale_summary:
+            existing_rationale_tokens = _tokenize(adr.rationale_summary)
+            if existing_rationale_tokens:
+                union = proposed_rationale_tokens | existing_rationale_tokens
+                rationale_overlap = len(proposed_rationale_tokens & existing_rationale_tokens) / len(union) if union else 0.0
+
+        # Combined score: title is primary, rationale is a boost
+        combined = title_overlap + (rationale_overlap * 0.3)
+
+        if title_overlap >= block_threshold or (title_overlap >= threshold and combined >= block_threshold):
+            findings.append(ProposalConflict(
+                kind="duplicate",
+                severity="error",
+                related_adr_ids=(adr.id,),
+                description=(
+                    f"DUPLICATE DETECTED: Proposed title overlaps {title_overlap:.0%} with "
+                    f"existing {adr.id}: {adr.title!r} (combined score: {combined:.0%})"
+                ),
+                suggestion=(
+                    f"This proposal appears to duplicate {adr.id}. Either supersede it "
+                    f"(add to 'supersedes') or abandon this proposal."
+                ),
+            ))
+        elif title_overlap >= threshold:
             findings.append(ProposalConflict(
                 kind="duplicate",
                 severity="warning",
                 related_adr_ids=(adr.id,),
                 description=(
-                    f"Proposed title overlaps {overlap:.0%} with existing {adr.id}: "
+                    f"Proposed title overlaps {title_overlap:.0%} with existing {adr.id}: "
                     f"{adr.title!r}"
                 ),
                 suggestion=(
@@ -342,7 +378,7 @@ def propose_adr(
     proposed_id = _next_adr_id(graph, req.requested_id)
 
     # Pre-checks
-    duplicate_findings = _detect_duplicate_title(graph, req.title)
+    duplicate_findings = _detect_duplicate_title(graph, req.title, req.rationale_summary)
     overlap_findings = _detect_domain_overlap_without_supersession(
         graph,
         req.domains,

@@ -1148,6 +1148,93 @@ def adr_impact(req: ImpactRequest) -> ImpactResponse:
     )
 
 
+class FreshnessRequest(BaseModel):
+    adr_id: str | None = Field(
+        default=None,
+        description="Check a specific ADR. If None, checks all active ADRs.",
+    )
+    repo_path: str = Field(
+        description="Path to the repo root to compare against",
+    )
+    compose_files: list[str] | None = Field(
+        default=None,
+        description="Compose files to check (default: docker-compose.prod.yml, docker-compose.yml)",
+    )
+    requirements_files: list[str] | None = Field(
+        default=None,
+        description="Requirements files (default: requirements.txt, pyproject.toml)",
+    )
+
+
+class FreshnessClaimOut(BaseModel):
+    adr_id: str
+    claim_type: str
+    subject: str
+    claimed_value: str
+    actual_value: str
+    source_file: str
+    severity: str
+
+
+class FreshnessResponse(BaseModel):
+    total_claims: int
+    stale_claims: list[FreshnessClaimOut]
+    verified_claims: int
+    unverifiable_claims: int
+    runtime_ms: int
+
+
+@mcp.tool()
+def adr_freshness(req: FreshnessRequest) -> FreshnessResponse:
+    """Check ADR content claims against actual repo state (versions, ports, images).
+
+    Phase 1+2: deterministic, no LLM. Extracts version/port/image claims from
+    ADR markdown body and compares against docker-compose and requirements files.
+    """
+    from iil_adrfw.freshness import extract_claims, check_freshness
+
+    adrs = _load_constitution()
+    repo_root = Path(req.repo_path).resolve()
+
+    all_claims = []
+    if req.adr_id:
+        for adr in adrs:
+            if adr.id == req.adr_id:
+                all_claims = extract_claims(adr.id, adr.body_markdown)
+                break
+    else:
+        from iil_adrfw.domain import Status
+        for adr in adrs:
+            if adr.status.is_active() and adr.body_markdown:
+                all_claims.extend(extract_claims(adr.id, adr.body_markdown))
+
+    report = check_freshness(
+        all_claims,
+        repo_root,
+        compose_files=req.compose_files,
+        requirements_files=req.requirements_files,
+    )
+
+    return FreshnessResponse(
+        total_claims=report.total_claims,
+        stale_claims=[
+            FreshnessClaimOut(
+                adr_id=f.adr_id,
+                claim_type=f.claim.claim_type,
+                subject=f.claim.subject,
+                claimed_value=f.claim.value,
+                actual_value=f.actual_value,
+                source_file=f.source_file,
+                severity=f.severity,
+            )
+            for f in report.stale_claims
+        ],
+        verified_claims=report.verified_claims,
+        unverifiable_claims=report.unverifiable_claims,
+        runtime_ms=report.runtime_ms,
+    )
+
+
 def main() -> None:
     """Entry point for `iil-adrfw-mcp`."""
     mcp.run()
