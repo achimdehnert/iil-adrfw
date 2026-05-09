@@ -1196,6 +1196,27 @@ def adr_freshness(req: FreshnessRequest) -> FreshnessResponse:
     adrs = _load_constitution()
     repo_root = Path(req.repo_path).resolve()
 
+    # Derive repo name from path for relevance filtering
+    repo_name = repo_root.name  # e.g. "dev-hub"
+
+    def _is_relevant(adr) -> bool:
+        """ADR is relevant if it targets this repo, or is platform-wide."""
+        if req.adr_id and adr.id == req.adr_id:
+            return True
+        # Explicit repo match
+        if adr.repo and adr.repo == repo_name:
+            return True
+        # Listed as consumer
+        if repo_name in adr.consumers:
+            return True
+        # Platform-wide (no specific repo/consumers = applies to all)
+        if not adr.repo and not adr.consumers:
+            return True
+        # "platform" repo ADRs apply broadly
+        if adr.repo == "platform" and not adr.consumers:
+            return True
+        return False
+
     all_claims = []
     if req.adr_id:
         for adr in adrs:
@@ -1205,7 +1226,7 @@ def adr_freshness(req: FreshnessRequest) -> FreshnessResponse:
     else:
         from iil_adrfw.domain import Status
         for adr in adrs:
-            if adr.status.is_active() and adr.body_markdown:
+            if adr.status.is_active() and adr.body_markdown and _is_relevant(adr):
                 all_claims.extend(extract_claims(adr.id, adr.body_markdown))
 
     report = check_freshness(
