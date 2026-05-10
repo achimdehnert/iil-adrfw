@@ -793,6 +793,62 @@ def _add_narrate_parser(sub):
     p.set_defaults(func=_cmd_narrate)
 
 
+def _cmd_metrics(args: argparse.Namespace) -> int:
+    """Compute and optionally write Schema v4 metrics to ADR frontmatters."""
+    import os as _os
+    from iil_adrfw.metrics import compute_all, write_metrics, controlling_report
+    from iil_adrfw.persistence import load_adrs
+    from iil_adrfw.schemas import get_schema_dir
+
+    _adr_dir_str = args.adr_dir or _os.environ.get("IIL_ADRFW_ADRS_DIR") or "docs/adr"
+    adr_dir = Path(_adr_dir_str)
+    schema_dir = Path(args.schema_dir) if args.schema_dir else get_schema_dir()
+
+    if not adr_dir.is_dir():
+        print(f"error: {adr_dir} is not a directory", file=sys.stderr)
+        return 2
+
+    adrs = load_adrs(adr_dir, schema_dir)
+    metrics_map = compute_all(adrs)
+
+    if args.write:
+        changed = write_metrics(adr_dir, metrics_map)
+        print(f"[OK] Metrics written to {changed} ADR files")
+
+    if args.report or not args.write:
+        print(controlling_report(metrics_map))
+
+    if args.json:
+        import json
+        out = {
+            mid: {
+                "inbound_links": m.inbound_links,
+                "ttd_days": m.ttd_days,
+                "ttr_days": m.ttr_days,
+                "ai_interactions": m.ai_interactions,
+                "ai_interactions_90d": m.ai_interactions_90d,
+                "last_computed": m.last_computed,
+            }
+            for mid, m in metrics_map.items()
+        }
+        print(json.dumps(out, indent=2))
+
+    return 0
+
+
+def _add_metrics_parser(sub):
+    p = sub.add_parser("metrics", help="Compute Schema v4 metrics (inbound_links, ttd, ttr, ai_interactions)")
+    p.add_argument("--adr-dir", default=None,
+                   help="ADR directory (default: $IIL_ADRFW_ADRS_DIR or ./docs/adr)")
+    p.add_argument("--schema-dir", default=None)
+    p.add_argument("--write", action="store_true",
+                   help="Write computed metrics into ADR frontmatters")
+    p.add_argument("--report", action="store_true",
+                   help="Print controlling report (always shown without --write)")
+    p.add_argument("--json", action="store_true", help="Output raw JSON")
+    p.set_defaults(func=_cmd_metrics)
+
+
 def main() -> None:
     p = argparse.ArgumentParser(
         prog="iil-adrfw",
@@ -813,6 +869,7 @@ def main() -> None:
     _add_propose_parser(sub)
     _add_diff_parser(sub)
     _add_narrate_parser(sub)
+    _add_metrics_parser(sub)
 
     args = p.parse_args()
     try:
