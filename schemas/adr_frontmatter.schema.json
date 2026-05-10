@@ -20,8 +20,8 @@
     },
     "status": {
       "type": "string",
-      "enum": ["draft", "proposed", "accepted", "deprecated", "superseded", "rejected", "experimental"],
-      "description": "Lifecycle state. 'draft' is pre-proposal. 'experimental' means accepted-but-revocable: rules may apply with severity capped at 'warning'."
+      "enum": ["draft", "proposed", "accepted", "deprecated", "superseded", "rejected", "experimental", "void"],
+      "description": "Lifecycle state. 'draft' is pre-proposal. 'experimental' means accepted-but-revocable: rules may apply with severity capped at 'warning'. 'void' means the ADR slot was misclassified — content moved to the correct doc type (plan/review/etc.), ADR number retained for reference integrity."
     },
     "status_history": {
       "type": "array",
@@ -229,7 +229,7 @@
         "properties": {
           "status": {
             "type": "string",
-            "enum": ["draft", "proposed", "accepted", "deprecated", "superseded", "rejected", "experimental"]
+            "enum": ["draft", "proposed", "accepted", "deprecated", "superseded", "rejected", "experimental", "void"]
           },
           "implementation_status": {
             "type": "string",
@@ -268,6 +268,34 @@
       "type": "string",
       "maxLength": 500,
       "description": "Single-paragraph 'why'. Full rationale lives in the markdown body."
+    },
+    "doc_type": {
+      "type": "string",
+      "enum": ["adr", "standard", "runbook", "plan", "review", "rfc"],
+      "default": "adr",
+      "description": "Schema v4: Document type discriminator. Files in docs/adr/ MUST have doc_type: adr. Prevents misclassification of plans/reviews as ADRs (see ADR-181/182 incident)."
+    },
+    "reviewed_by": {
+      "type": "array",
+      "description": "Schema v4: Human reviewers only. AI tools MUST NOT appear here — use ai_sparring_by instead. Empty = Bus Factor visible. WARNING when status=accepted and empty (Karenzzeit until 2026-11-10).",
+      "items": { "$ref": "#/$defs/HumanReview" }
+    },
+    "ai_sparring_by": {
+      "type": "array",
+      "description": "Schema v4: AI tool contributions. Non-accountable — does NOT satisfy reviewed_by. Bus Factor=1 if reviewed_by is empty regardless of ai_sparring_by content.",
+      "items": { "$ref": "#/$defs/AISparring" }
+    },
+    "metrics": {
+      "type": ["object", "null"],
+      "description": "Schema v4: Auto-computed by adrfw nightly. Do NOT edit manually.",
+      "additionalProperties": false,
+      "properties": {
+        "references_90d": { "type": "integer", "minimum": 0 },
+        "inbound_links": { "type": "integer", "minimum": 0 },
+        "ttd_days": { "type": ["integer", "null"], "minimum": 0 },
+        "ttr_days": { "type": ["integer", "null"], "minimum": 0 },
+        "last_computed": { "type": "string", "format": "date-time" }
+      }
     }
   },
   "$defs": {
@@ -304,8 +332,8 @@
       "required": ["from", "to", "at", "by"],
       "additionalProperties": false,
       "properties": {
-        "from": { "type": ["string", "null"], "enum": ["draft", "proposed", "accepted", "deprecated", "superseded", "rejected", "experimental", null] },
-        "to":   { "type": "string", "enum": ["draft", "proposed", "accepted", "deprecated", "superseded", "rejected", "experimental"] },
+        "from": { "type": ["string", "null"], "enum": ["draft", "proposed", "accepted", "deprecated", "superseded", "rejected", "experimental", "void", null] },
+        "to":   { "type": "string", "enum": ["draft", "proposed", "accepted", "deprecated", "superseded", "rejected", "experimental", "void"] },
         "at":   { "type": "string", "format": "date-time" },
         "by":   { "type": "string" },
         "reason": { "type": "string" },
@@ -483,6 +511,30 @@
           "type": ["string", "null"],
           "description": "Roadmap phase when this mitigation is in place."
         }
+      }
+    },
+    "HumanReview": {
+      "type": "object",
+      "required": ["name", "date", "verdict"],
+      "additionalProperties": false,
+      "description": "Schema v4: A human's formal review. AI tool names MUST NOT appear in the 'name' field.",
+      "properties": {
+        "name": { "type": "string", "description": "Human identifier: full name, github handle, or email." },
+        "date": { "type": "string", "format": "date" },
+        "verdict": { "type": "string", "enum": ["approved", "changes-requested", "rejected"] },
+        "note": { "type": "string", "maxLength": 280 }
+      }
+    },
+    "AISparring": {
+      "type": "object",
+      "required": ["tool", "date", "role"],
+      "additionalProperties": false,
+      "description": "Schema v4: AI tool contribution. Non-accountable — does NOT satisfy reviewed_by requirement.",
+      "properties": {
+        "tool": { "type": "string", "enum": ["cascade", "claude-code", "copilot", "other"] },
+        "date": { "type": "string", "format": "date" },
+        "role": { "type": "string", "enum": ["compliance-check", "adversarial-review", "drafting"] },
+        "summary": { "type": "string", "maxLength": 500 }
       }
     }
   }

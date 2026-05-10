@@ -30,6 +30,7 @@ class Status(str, Enum):
     SUPERSEDED = "superseded"
     REJECTED = "rejected"
     EXPERIMENTAL = "experimental"
+    VOID = "void"  # Schema v4: misclassified ADR slot — content moved to correct doc type
 
     def is_active(self) -> bool:
         return self in (Status.ACCEPTED, Status.EXPERIMENTAL)

@@ -19,7 +19,7 @@ from iil_adrfw.domain import (
 _FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n(.*)$", re.DOTALL)
 _H1_RE = re.compile(r"^#\s+(?:ADR-\d{3,5}\s*[—:-]\s*)?(.+?)\s*$", re.MULTILINE)
 
-# Schema v3 field rename aliases. Source -> target.
+# Schema v3/v4 field rename aliases. Source -> target.
 # 'target wins if both present' is the merge strategy throughout.
 _FIELD_ALIASES: tuple[tuple[str, str], ...] = (
     ("decision-makers", "deciders"),
@@ -34,12 +34,19 @@ _FIELD_ALIASES: tuple[tuple[str, str], ...] = (
     ("review", "review_status"),
     ("author", "owner"),
     ("date", "decision_date"),
+    # Schema v4 new fields — hyphen forms
+    ("reviewed-by", "reviewed_by"),
+    ("ai-sparring-by", "ai_sparring_by"),
+    ("doc-type", "doc_type"),
+    ("status-history", "status_history"),
+    ("decision-maker", "deciders"),
 )
 
 # Fields stripped entirely — too low-frequency and/or semantically distinct
 # from any schema field. They survive in the markdown body if needed.
+# NOTE: "reviewed-by" was stripped in v3 but is now aliased to reviewed_by in v4.
 _STRIPPED_FIELDS: frozenset[str] = frozenset({
-    "reviewed-by", "reviewed", "repos",
+    "reviewed", "repos",
     # Tool-specific noise (Jekyll, audit transients, etc.):
     "nav_order", "parent", "commit", "product_name",
     "supersedes_check", "superseded_by_planned",
@@ -132,6 +139,30 @@ def _normalize_frontmatter(
             m_date = re.match(r"^(\d{4}-\d{2}-\d{2})", v)
             if m_date and len(v) > 10:
                 frontmatter[date_field] = m_date.group(1)
+
+    # C.1b-v4 — Schema v4: normalize date fields nested in reviewed_by / ai_sparring_by
+    for list_field in ("reviewed_by", "ai_sparring_by"):
+        items = frontmatter.get(list_field)
+        if isinstance(items, list):
+            for item in items:
+                if isinstance(item, dict) and "date" in item:
+                    v = item["date"]
+                    if v is not None and not isinstance(v, str):
+                        item["date"] = str(v)[:10] if hasattr(v, "year") else str(v)
+
+    # C.v4-migration — reviewed_by / ai_sparring_by: strip legacy string/string-array formats.
+    # Schema v4 requires array of HumanReview/AISparring objects. Strings cannot be auto-migrated
+    # (missing required date/verdict/role fields). Stripped → Bus Factor warning fires correctly.
+    for list_field in ("reviewed_by", "ai_sparring_by"):
+        rv = frontmatter.get(list_field)
+        if rv is None:
+            continue
+        if not isinstance(rv, list):
+            # Scalar string (legacy: "Principal Architect") — strip
+            frontmatter.pop(list_field)
+        elif rv and not isinstance(rv[0], dict):
+            # Array of strings (legacy: ["Claude (Sparring, date)"]) — strip
+            frontmatter.pop(list_field)
 
     # C.1c — Title: enforce maxLength 120 (truncate if needed)
     title = frontmatter.get("title")
