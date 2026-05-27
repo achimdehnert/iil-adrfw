@@ -1,1 +1,0 @@
-/home/devuser/github/platform/.windsurf/workflows/knowledge-capture.md
