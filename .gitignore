@@ -3,3 +3,5 @@ __pycache__/
 *.egg-info/
 dist/
 .eggs/
+NEXT.md
+.windsurfignore
