@@ -42,6 +42,31 @@ _FIELD_ALIASES: tuple[tuple[str, str], ...] = (
     ("decision-maker", "deciders"),
 )
 
+
+def original_frontmatter(md_path: Path) -> dict:
+    """Parse a file's YAML frontmatter WITHOUT Phase-1 normalization.
+
+    Used to inspect the author's original keys (e.g. for deprecation warnings)
+    before aliases are rewritten to their canonical form. Returns {} if the
+    file has no frontmatter block. Distinct from the domain object's
+    `.raw_frontmatter`, which is the POST-normalization dict.
+    """
+    m = _FRONTMATTER_RE.match(md_path.read_text(encoding="utf-8"))
+    if not m:
+        return {}
+    return yaml.safe_load(m.group(1)) or {}
+
+
+def detect_legacy_aliases(frontmatter: dict) -> list[tuple[str, str]]:
+    """Return [(legacy_key, canonical_key)] for every non-canonical alias present.
+
+    Reuses the single-source `_FIELD_ALIASES` table — so it stays in lock-step
+    with the loader's normalization. Pass the RAW frontmatter (see
+    `original_frontmatter`); after `_normalize_frontmatter` the legacy keys are gone.
+    """
+    return [(legacy, canonical) for legacy, canonical in _FIELD_ALIASES if legacy in frontmatter]
+
+
 # Fields stripped entirely — too low-frequency and/or semantically distinct
 # from any schema field. They survive in the markdown body if needed.
 # NOTE: "reviewed-by" was stripped in v3 but is now aliased to reviewed_by in v4.
