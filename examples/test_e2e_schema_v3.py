@@ -22,6 +22,7 @@ os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
 
 from iil_adrfw.persistence import (
     ADRLoadError, _normalize_status, load_adr, load_adrs,
+    detect_legacy_aliases, original_frontmatter,
 )
 
 
@@ -144,6 +145,42 @@ domains:
     adrs = load_adrs(ADRS_DIR, SCHEMAS_DIR, validate=True)
     assert adrs[0].id == "ADR-512"
     print("  PASS: adr_id → id")
+
+
+def test_legacy_alias_is_detected_but_still_validates():
+    """A non-canonical alias (adr_id) is DETECTED for deprecation warning,
+    yet the ADR still validates (warn, never hard-fail)."""
+    _cleanup()
+    fm = """---
+adr_id: ADR-513
+title: Legacy alias fixture
+status: accepted
+decision_date: "2026-01-01"
+deciders:
+  - "Achim"
+domains:
+  - test
+---
+
+# Body
+"""
+    p = _stage("ADR-513.md", fm)
+    # Deprecation detection works on the ORIGINAL (pre-normalize) frontmatter
+    aliases = detect_legacy_aliases(original_frontmatter(p))
+    assert ("adr_id", "id") in aliases, aliases
+    # ...and validation still passes (alias is normalized, not rejected)
+    adr = load_adr(p, SCHEMAS_DIR, validate=True)
+    assert adr.id == "ADR-513"
+    print("  PASS: adr_id detected as deprecated AND still valid")
+
+
+def test_canonical_id_yields_no_deprecation_warning():
+    """An ADR using the canonical id: key produces no alias warnings."""
+    _cleanup()
+    fm = _BASE.format(nnn="514", extra="")
+    p = _stage("ADR-514.md", fm)
+    assert detect_legacy_aliases(original_frontmatter(p)) == []
+    print("  PASS: canonical id → no deprecation warning")
 
 
 def test_review_aliases_to_review_status():
@@ -426,6 +463,8 @@ if __name__ == "__main__":
         ("relates_to → related", test_relates_to_aliases_to_related),
         ("author → owner", test_author_aliases_to_owner),
         ("adr_id → id", test_adr_id_aliases_to_id),
+        ("legacy alias detected + still valid", test_legacy_alias_is_detected_but_still_validates),
+        ("canonical id → no warning", test_canonical_id_yields_no_deprecation_warning),
         ("review → review_status", test_review_aliases_to_review_status),
         ("last_verified → last_reviewed", test_last_verified_aliases_to_last_reviewed),
         ("Jekyll metadata stripped", test_jekyll_metadata_stripped),

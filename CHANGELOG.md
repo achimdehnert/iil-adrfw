@@ -3,6 +3,25 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [0.6.0] — 2026-05-30
+
+### Added — frontmatter alias deprecation warnings
+
+- **`validate` now reports non-canonical frontmatter keys** as deprecation warnings.
+  Legacy aliases (e.g. `adr_id`→`id`, `date`→`decision_date`, `decision-makers`→`deciders`)
+  are still accepted and normalized — the warning only nudges authors toward the canonical
+  form. **Never affects pass/fail** (validation stays green; exit code unchanged).
+  Surfaced in both text output (`DEPRECATION (N): …`) and `--json`
+  (`deprecation_warnings: [{file, aliases:[{legacy, canonical}]}]`).
+- New public helpers in `iil_adrfw.persistence`: `original_frontmatter(path)` (parse
+  frontmatter pre-normalization) and `detect_legacy_aliases(fm)` (single-source against
+  `_FIELD_ALIASES`).
+
+Rationale: the alias table is a deliberate lenient-input design; a hard-fail on one alias
+would be inconsistent with the other ~16 and would break the green-CI contract (e.g. 173/176
+platform ADRs currently use at least one alias). A consistent, non-blocking deprecation
+warning makes the drift visible without breaking anything.
+
 ## [0.5.0] — 2026-05-10
 
 ### Added — Schema v4

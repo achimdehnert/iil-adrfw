@@ -320,7 +320,12 @@ def _cmd_narrate(args: argparse.Namespace) -> int:
 
 def _cmd_validate(args: argparse.Namespace) -> int:
     """Validate ADR frontmatter against schema v3."""
-    from iil_adrfw.persistence import ADRLoadError, load_adr
+    from iil_adrfw.persistence import (
+        ADRLoadError,
+        detect_legacy_aliases,
+        load_adr,
+        original_frontmatter,
+    )
     from iil_adrfw.schemas import get_schema_dir
 
     adr_dir = Path(args.adr_dir)
@@ -336,6 +341,7 @@ def _cmd_validate(args: argparse.Namespace) -> int:
         return 2
 
     ok, failures = [], []
+    alias_warnings = []  # (file, [(legacy, canonical), ...])
     for md in md_files:
         try:
             load_adr(md, schema_dir, validate=True)
@@ -345,6 +351,14 @@ def _cmd_validate(args: argparse.Namespace) -> int:
             failures.append((md.name, msg))
         except Exception as e:
             failures.append((md.name, f"{type(e).__name__}: {str(e)[:100]}"))
+        # Deprecation warnings: non-canonical alias keys are accepted (normalized)
+        # but should migrate to the canonical form. Never affects pass/fail.
+        try:
+            aliases = detect_legacy_aliases(original_frontmatter(md))
+            if aliases:
+                alias_warnings.append((md.name, aliases))
+        except Exception:
+            pass
 
     total = len(ok) + len(failures)
     pct = 100 * len(ok) / total if total else 0
@@ -354,6 +368,10 @@ def _cmd_validate(args: argparse.Namespace) -> int:
             "total": total, "passed": len(ok), "failed": len(failures),
             "percent": round(pct, 1),
             "failures": [{"file": f, "error": e} for f, e in failures],
+            "deprecation_warnings": [
+                {"file": f, "aliases": [{"legacy": legacy, "canonical": canonical} for legacy, canonical in al]}
+                for f, al in alias_warnings
+            ],
         })
     else:
         print(f"ADR Frontmatter Validation: {len(ok)}/{total} ({pct:.1f}%)")
@@ -363,6 +381,11 @@ def _cmd_validate(args: argparse.Namespace) -> int:
                 print(f"  {name}: {err}")
         else:
             print("  ✓ All ADRs valid")
+        if alias_warnings:
+            print(f"\nDEPRECATION ({len(alias_warnings)}) — non-canonical frontmatter keys (normalized, please migrate):")
+            for name, aliases in alias_warnings:
+                hint = ", ".join(f"'{legacy}' → '{canonical}'" for legacy, canonical in aliases)
+                print(f"  {name}: {hint}")
 
     return 1 if failures else 0
 
