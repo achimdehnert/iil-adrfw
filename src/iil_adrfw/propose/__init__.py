@@ -17,15 +17,19 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from typing import Any
 
 from iil_adrfw.domain import (
-    ADR, Amendment, DecisionDriver, OpenQuestion, PerRepoStatus,
-    Status, TemporalRange,
+    ADR,
+    Amendment,
+    DecisionDriver,
+    OpenQuestion,
+    PerRepoStatus,
+    Status,
+    TemporalRange,
 )
 from iil_adrfw.graph import ConstitutionGraph, _tokenize
-
 
 # --- Result types ---
 
@@ -249,7 +253,7 @@ def _build_frontmatter(
     open_questions_to_close: list[OpenQuestionMatch],
 ) -> dict[str, Any]:
     """Assemble a complete, schema-valid frontmatter dict."""
-    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    today = datetime.now(UTC).strftime("%Y-%m-%d")
     fm: dict[str, Any] = {
         "id": adr_id,
         "title": title,
@@ -371,6 +375,7 @@ def propose_adr(
     generation is delegated to the consumer."""
     import time
     from pathlib import Path
+
     from iil_adrfw.cross_repo import ConsumerRepoLayout, validate_cross_repo
 
     start = time.monotonic()
@@ -418,8 +423,8 @@ def propose_adr(
             status=Status.PROPOSED,
             domains=tuple(req.domains),
             deciders=tuple(req.deciders),
-            decision_date=datetime.now(timezone.utc),
-            temporal=TemporalRange(valid_from=datetime.now(timezone.utc)),
+            decision_date=datetime.now(UTC),
+            temporal=TemporalRange(valid_from=datetime.now(UTC)),
             rationale_summary=req.rationale_summary,
             repo=req.repo,
             consumers=tuple(req.consumers),

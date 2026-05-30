@@ -6,7 +6,7 @@ Persistence (markdown/yaml loading) is in iil_adrfw.persistence.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -203,7 +203,7 @@ class ADR:
     def applicable_rules(self, world_time: datetime | None = None) -> list[Rule]:
         if not self.status.is_active():
             return []
-        wt = world_time or datetime.now(timezone.utc)
+        wt = world_time or datetime.now(UTC)
         return [r for r in self.rules if r.temporal.applies_at(wt)]
 
     def status_in_repo(self, repo: str) -> tuple[Status, str]:

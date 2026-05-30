@@ -209,9 +209,12 @@ def _summarize_change(adr_id: str, kind: ChangeKind, fcs: list[FieldChange]) -> 
             n_rem = len(after.get("removed", []))
             n_mod = len(after.get("modified", []))
             ops = []
-            if n_add: ops.append(f"+{n_add}")
-            if n_rem: ops.append(f"-{n_rem}")
-            if n_mod: ops.append(f"~{n_mod}")
+            if n_add:
+                ops.append(f"+{n_add}")
+            if n_rem:
+                ops.append(f"-{n_rem}")
+            if n_mod:
+                ops.append(f"~{n_mod}")
             parts.append(f"rules: {' '.join(ops)}")
         elif fc.field_path in ("supersedes", "superseded_by", "consolidates"):
             l_count = len(fc.before or [])

@@ -44,4 +44,11 @@ src = ["src"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
-ignore = ["E501"]
+# E501: line-length handled by formatter, not enforced.
+# UP042: StrEnum migration is an opinionated, behavior-sensitive style choice —
+#        the codebase deliberately uses (str, Enum); not enforced.
+ignore = ["E501", "UP042"]
+
+[tool.ruff.lint.per-file-ignores]
+# __init__.py modules re-export public API; unused-import (F401) is by design.
+"__init__.py" = ["F401"]

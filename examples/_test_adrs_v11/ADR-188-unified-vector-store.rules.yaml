@@ -1,0 +1,245 @@
+adr_id: ADR-188
+schema_version: "1.0"
+default_severity: error
+
+rules:
+  - id: rag-chunks-table-present
+    title: Schema-Datei muss rag_chunks Tabelle enthalten
+    severity: error
+    valid_from: "2026-05-21T00:00:00Z"
+    knowledge_from: "2026-05-07T00:00:00Z"
+    retroactive: false
+    applies_to:
+      include_paths: ["mcp-hub/rag_mcp/db/schema.sql"]
+      file_types: [".sql"]
+    checker:
+      type: regex
+      pattern: "(?i)CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?rag_chunks\\b"
+      flags: "im"
+      negate: false
+    rationale: >
+      Phase 1 erfordert dass das ADR-171-Schema (rag_collections, rag_documents,
+      rag_chunks) in mcp_hub_db deployed ist. Ohne rag_chunks-Tabelle kann
+      rag-mcp nicht arbeiten und alle Phase-2-Migrationen sind blockiert.
+    fix_suggestions:
+      - description: "Phase 1 Migration laufen lassen — siehe ADR-171"
+        confidence: 0.9
+        automated: false
+        side_effects:
+          - "Erfordert pgvector Extension"
+          - "Erstellt drei neue Tabellen"
+    audience_explanations:
+      new_dev: >
+        Die Datei mcp-hub/rag_mcp/db/schema.sql muss eine CREATE TABLE rag_chunks
+        Anweisung enthalten. Wenn nicht: Phase 1 ist nicht abgeschlossen.
+      auditor: >
+        Diese Regel verifiziert die Implementierung der Konsolidierungsentscheidung.
+        Bis erfüllt befindet sich die Plattform im Übergangszustand zwischen ADR-087
+        und ADR-188.
+    blast_radius_estimator: platform
+    tags: ["phase-1-gating", "schema"]
+
+  - id: tenant-id-is-uuid
+    title: tenant_id in Vector-Store-Tabellen ist UUID NOT NULL (nicht BIGINT)
+    severity: critical
+    valid_from: "2026-05-21T00:00:00Z"
+    knowledge_from: "2026-05-08T00:00:00Z"
+    retroactive: false
+    applies_to:
+      include_paths: ["mcp-hub/rag_mcp/db/**.sql"]
+      file_types: [".sql"]
+    checker:
+      type: regex
+      pattern: "tenant_id\\s+(?!UUID)(BIGINT|BIGSERIAL|INTEGER|INT)\\b"
+      flags: "im"
+      negate: false
+    rationale: >
+      v1.1 Klarstellung (E6): Alle Consumer-Repos nutzen tenant_id als UUIDField.
+      ADR-022 betrifft nur Primary Keys; tenant_id ist Referenzfeld, kein PK.
+      Schema-Drift hier würde 8 Consumer-Repos zur Migration zwingen oder eine
+      Mapping-Tabelle erfordern (Zero Business Value).
+    fix_suggestions:
+      - description: "tenant_id Spalte auf UUID NOT NULL ändern; CREATE INDEX auf tenant_id"
+        confidence: 0.95
+        automated: true
+        code_transform: |
+          - tenant_id BIGINT NOT NULL,
+          + tenant_id UUID NOT NULL,
+        side_effects:
+          - "Falls Daten existieren: Migration UUID->UUID trivial, BIGINT->UUID benötigt Mapping"
+          - "Index neu anlegen: CREATE INDEX idx_chunks_tenant ON rag_chunks (tenant_id)"
+    examples:
+      good:
+        - code: "tenant_id UUID NOT NULL,"
+          language: sql
+      bad:
+        - code: "tenant_id BIGINT NOT NULL,"
+          language: sql
+          comment: "ADR-022 Mistake — tenant_id ist kein PK, ADR-022 gilt nicht"
+        - code: "tenant_id BIGSERIAL,"
+          language: sql
+    audience_explanations:
+      new_dev: >
+        In Vector-Store-SQL: tenant_id UUID NOT NULL. Nicht BIGINT, nicht BIGSERIAL.
+      senior: >
+        Der häufigste Fehler ist die falsche Anwendung von ADR-022 (BigAutoField)
+        auf tenant_id. ADR-022 gilt für Primary Keys; tenant_id ist eine UUID-FK.
+      architect: >
+        Die UUID-Wahl ist konsistent mit allen Consumer-Repos. BIGINT würde 20+
+        Models in Konsumenten zur Änderung zwingen ohne fachlichen Vorteil.
+        Performance-Differenz 8 Bytes/Row bei ~4 KB Embedding = 0.13% — irrelevant.
+      auditor: >
+        Diese Regel ist v1.1-Konsequenz nach Konsistenz-Audit. Verstöße deuten auf
+        v1.0-basierte Implementierung hin und blockieren alle Consumer-Repos.
+    blast_radius_estimator: platform
+    tags: ["v1.1-correction", "schema", "non-negotiable"]
+
+  - id: no-direct-search-chunks-import
+    title: Konsumenten dürfen search_chunks nicht direkt referenzieren
+    severity: warning
+    valid_from: "2026-06-15T00:00:00Z"
+    knowledge_from: "2026-05-07T00:00:00Z"
+    retroactive: false
+    applies_to:
+      exclude_paths:
+        - "platform/packages/platform-search/**"
+        - "**/migrations/**"
+        - "tests/**"
+      file_types: [".py"]
+    checker:
+      type: regex
+      pattern: "(?:from\\s+\\S*search_chunks|import\\s+\\S*search_chunks|\\bsearch_chunks\\.objects\\b)"
+      flags: "m"
+      negate: false
+    rationale: >
+      Nach ADR-188 sprechen Consumer-Repos (bfagent, weltenhub, meiki-hub,
+      risk-hub, ...) ausschließlich über rag-mcp mit dem Vector Store.
+      Direkter Import von search_chunks ist nur im platform-search Thin-Client
+      Package erlaubt, das selbst rag-mcp wrappt. Während der Phase D-2
+      (Dual-Read) ist Fallback-Logik im Package, nicht in Consumern.
+    fix_suggestions:
+      - description: "Migration auf rag-mcp Tools: rag_ingest / rag_search statt direkter ORM-Zugriff"
+        confidence: 0.7
+        automated: false
+        side_effects:
+          - "API-Surface ändert sich"
+          - "Test-Fixtures müssen angepasst werden"
+          - "Bestehende Daten müssen via Migration nach rag_chunks übernommen werden"
+    audience_explanations:
+      new_dev: >
+        Wenn du in einem Consumer-Repo (bfagent, weltenhub, ...) bist: importiere
+        nicht search_chunks. Nutze stattdessen das rag-mcp Tool.
+      architect: >
+        Diese Regel implementiert den Single-Access-Point-Vertrag aus E3 von
+        ADR-188. Verstöße sind ein Indikator für unvollständige Phase-2-Migration
+        und gefährden Phase D-4 (DROP TABLE).
+    blast_radius_estimator: platform
+    exemptions:
+      - scope:
+          include_paths: ["platform/packages/platform-search/**"]
+        reason: "platform-search ist der Thin-Client-Wrapper, der rag-mcp kapselt — interner Zugriff legitim. Während D-2 zusätzlich Fallback-Logik."
+        granted_at: "2026-05-08T00:00:00Z"
+        granted_by: "Achim Dehnert <achim@iil.gmbh>"
+        expires_at: null
+        review_required_at: "2026-11-08"
+    tags: ["consolidation", "cross-repo"]
+
+  - id: embedding-dimensions-1024
+    title: Vector-Spalten verwenden 1024 Dimensionen (multilingual-e5-large)
+    severity: error
+    valid_from: "2026-05-21T00:00:00Z"
+    knowledge_from: "2026-05-07T00:00:00Z"
+    retroactive: false
+    applies_to:
+      include_paths:
+        - "mcp-hub/rag_mcp/db/**.sql"
+        - "**/migrations/*rag*.py"
+      file_types: [".sql", ".py"]
+    checker:
+      type: regex
+      pattern: "vector\\s*\\(\\s*(?!1024\\s*\\))\\d+\\s*\\)"
+      flags: "m"
+      negate: false
+    rationale: >
+      Das Primärmodell ist multilingual-e5-large mit 1024 Dimensionen.
+      pgvector-Spalten mit anderen Dimensionen (typisch 1536 für OpenAI
+      text-embedding-3-small) deuten auf Drift zurück zum alten Schema oder
+      auf ungeplanten OpenAI-Fallback im Storage. OpenAI-Vektoren werden über
+      separate optionale Spalte gespeichert (E7), nicht in der Primärspalte.
+    fix_suggestions:
+      - description: "Vector-Dimension auf 1024 setzen, oder bei OpenAI-Bedarf separate Spalte vector_openai vector(1536)"
+        confidence: 0.85
+        automated: false
+        side_effects:
+          - "Re-embedding aller bestehenden Daten erforderlich"
+          - "Prüfen ob OpenAI-Fallback wirklich gebraucht wird (siehe E7 collection-spezifische Policy)"
+    audience_explanations:
+      new_dev: >
+        In SQL: vector(1024). In Django-Migrations für VectorField: dimensions=1024.
+        Andere Werte sind ein Bug.
+      architect: >
+        Die Dimensionswahl ist Modell-Vertrag, nicht Performance-Detail. 1024 vs
+        1536 sind nicht kompatibel — Mischbetrieb erfordert Re-Embedding und
+        bricht Cross-Repo-Search (D-6).
+      auditor: >
+        DSGVO-relevant: 1536-dim deutet auf OpenAI-Fallback hin. E7 verbietet
+        Cloud-Fallback für meiki:fallakten / meiki:gesetze / risk:sds / risk:gbu.
+        Bei Verstoß: Data-Flow-Analyse erforderlich.
+    blast_radius_estimator: platform
+    tags: ["embedding", "v1.1-policy"]
+
+  - id: dsgvo-restricted-collections-no-cloud
+    title: DSGVO-kritische Collections müssen allow_cloud=False haben
+    severity: critical
+    valid_from: "2026-05-21T00:00:00Z"
+    knowledge_from: "2026-05-08T00:00:00Z"
+    retroactive: false
+    applies_to:
+      include_paths:
+        - "**/embedding_policy*.py"
+        - "**/rag_mcp/**/policy.py"
+        - "**/settings/embedding*.py"
+      file_types: [".py"]
+    checker:
+      type: custom
+      entry_point: "iil_adrfw.checkers.policy:dsgvo_restricted_collections"
+      config:
+        restricted_collections:
+          - "meiki:fallakten"
+          - "meiki:gesetze"
+          - "risk:sds"
+          - "risk:gbu"
+        required_setting: "allow_cloud"
+        required_value: false
+    rationale: >
+      v1.1 §E7: Collection-spezifische DSGVO-Fallback-Policy. Personenbezogene
+      Daten (Fallakten) und Betriebsgeheimnisse (SDS, GBU) dürfen unter keinen
+      Umständen an Cloud-APIs gesendet werden — auch nicht bei Embedder-Ausfall.
+      Verstoß = DSGVO-Verstoß = Bußgeld-Risiko + Vertrauensbruch.
+    fix_suggestions:
+      - description: "EMBEDDING_POLICY für genannte Collections auf allow_cloud=False setzen"
+        confidence: 0.99
+        automated: true
+        code_transform: |
+          EMBEDDING_POLICY = {
+              "meiki:fallakten": {"allow_cloud": False},
+              "meiki:gesetze":   {"allow_cloud": False},
+              "risk:sds":        {"allow_cloud": False},
+              "risk:gbu":        {"allow_cloud": False},
+              # ...
+          }
+        side_effects:
+          - "Bei Embedder-Ausfall: Ingest schlägt fehl (EmbeddingUnavailableError)"
+          - "Search degradiert für diese Collections auf FTS-only"
+    audience_explanations:
+      new_dev: >
+        In der EMBEDDING_POLICY müssen meiki:fallakten, meiki:gesetze, risk:sds,
+        risk:gbu auf allow_cloud=False stehen. Niemand verändert diese Werte
+        ohne Rücksprache mit dem DSGVO-Verantwortlichen.
+      auditor: >
+        Diese Regel ist DSGVO-Compliance-kritisch. Sie verifiziert Art. 6
+        (Rechtmäßigkeit) und Art. 28 (Auftragsverarbeitung) bei
+        Embedder-Service-Wechsel. Bei Audit-Run-Verstoß: sofortige Eskalation
+        an DSB, kein automatisches Fix-Apply.
+    blast_radius_estimator: tenant
+    tags: ["dsgvo", "v1.1-policy", "non-negotiable", "regulatory"]
