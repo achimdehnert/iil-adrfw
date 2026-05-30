@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 import re
-from datetime import datetime, time, timezone
+from datetime import UTC, datetime, time, timezone
 from pathlib import Path
 from typing import Any
 
@@ -12,8 +12,18 @@ from jsonschema import Draft202012Validator
 from referencing import Registry, Resource
 
 from iil_adrfw.domain import (
-    ADR, Amendment, DecisionDriver, DeprecationStep, OpenQuestion,
-    PerRepoStatus, Rule, Scope, Severity, SPOFMitigation, Status, TemporalRange,
+    ADR,
+    Amendment,
+    DecisionDriver,
+    DeprecationStep,
+    OpenQuestion,
+    PerRepoStatus,
+    Rule,
+    Scope,
+    Severity,
+    SPOFMitigation,
+    Status,
+    TemporalRange,
 )
 
 _FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n(.*)$", re.DOTALL)
@@ -372,16 +382,16 @@ def _registry(schemas_dir: Path) -> Registry:
 
 def _to_datetime(value: Any) -> datetime:
     if isinstance(value, datetime):
-        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+        return value if value.tzinfo else value.replace(tzinfo=UTC)
     if isinstance(value, str):
         # ISO 8601; fall back to date-only -> midnight UTC
         try:
             dt = datetime.fromisoformat(value.replace("Z", "+00:00"))
-            return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+            return dt if dt.tzinfo else dt.replace(tzinfo=UTC)
         except ValueError:
             pass
     if hasattr(value, "year") and hasattr(value, "month"):  # datetime.date
-        return datetime.combine(value, time.min, tzinfo=timezone.utc)
+        return datetime.combine(value, time.min, tzinfo=UTC)
     raise ADRLoadError(f"Cannot interpret {value!r} as datetime")
 
 

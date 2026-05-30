@@ -15,10 +15,10 @@ from __future__ import annotations
 import re
 import time
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime, timezone
 from pathlib import Path
-from typing import Iterable
 
 import libcst as cst
 from libcst.metadata import PositionProvider
@@ -256,7 +256,7 @@ def validate_cross_repo(
         runtime_ms = int((time.monotonic() - start) * 1000)
         return CrossRepoReport(
             adr_id=adr.id,
-            validated_at=datetime.now(timezone.utc),
+            validated_at=datetime.now(UTC),
             consumer_repos_scanned=tuple(scanned),
             repos_unreachable=tuple(unreachable),
             conflicts=[],
@@ -276,7 +276,7 @@ def validate_cross_repo(
         runtime_ms = int((time.monotonic() - start) * 1000)
         return CrossRepoReport(
             adr_id=adr.id,
-            validated_at=datetime.now(timezone.utc),
+            validated_at=datetime.now(UTC),
             consumer_repos_scanned=tuple(scanned),
             repos_unreachable=tuple(unreachable),
             conflicts=[],
@@ -324,7 +324,7 @@ def validate_cross_repo(
     runtime_ms = int((time.monotonic() - start) * 1000)
     return CrossRepoReport(
         adr_id=adr.id,
-        validated_at=datetime.now(timezone.utc),
+        validated_at=datetime.now(UTC),
         consumer_repos_scanned=tuple(scanned),
         repos_unreachable=tuple(unreachable),
         conflicts=conflicts,
