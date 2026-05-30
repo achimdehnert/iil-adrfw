@@ -15,10 +15,10 @@ Selection modes:
 """
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Iterable
 
 from iil_adrfw.domain import ADR, Status
 
@@ -212,7 +212,7 @@ def _section_compliance_trail(adrs: list[ADR]) -> NarrativeSection:
         regulatory = [d for d in a.decision_drivers if d.category == "regulatory"]
         regulatory_part = ""
         if regulatory:
-            regulatory_part = f"  \n  *Regulatory drivers:* " + "; ".join(d.driver for d in regulatory)
+            regulatory_part = "  \n  *Regulatory drivers:* " + "; ".join(d.driver for d in regulatory)
         items.append(
             f"- **{a.id}** ({a.status.value})\n"
             f"  Decision date: {date}\n"

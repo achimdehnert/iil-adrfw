@@ -23,7 +23,7 @@ from __future__ import annotations
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -41,7 +41,7 @@ class ADRMetrics:
     ttr_days: int | None = None
     ai_interactions: int = 0
     ai_interactions_90d: int = 0
-    last_computed: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    last_computed: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 # ---------------------------------------------------------------------------
@@ -97,7 +97,6 @@ def compute_all(adrs: list[Any]) -> dict[str, ADRMetrics]:
         sparring = fm.get("ai_sparring_by") or []
         if isinstance(sparring, list):
             metrics.ai_interactions = len(sparring)
-            cutoff = today.replace(year=today.year - (1 if today.month <= 3 else 0))
             # Simple 90-day cutoff
             cutoff_date = date.fromordinal(today.toordinal() - 90)
             for entry in sparring:
@@ -191,8 +190,8 @@ def controlling_report(metrics_map: dict[str, ADRMetrics]) -> str:
     lines = [
         "## ADR Controlling Report",
         "",
-        f"| Metric | Value |",
-        f"|--------|-------|",
+        "| Metric | Value |",
+        "|--------|-------|",
         f"| Total ADRs | {len(all_m)} |",
         f"| AI interactions (total) | {total_ai} |",
         f"| AI interactions (last 90d) | {total_ai_90d} |",

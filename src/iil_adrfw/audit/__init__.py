@@ -12,10 +12,10 @@ Auditors:
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 from enum import Enum
-from typing import Iterable
 
 from iil_adrfw.domain import ADR, Status
 from iil_adrfw.graph import ConstitutionGraph
@@ -96,8 +96,8 @@ def audit_supersession_hygiene(graph: ConstitutionGraph) -> list[AuditFinding]:
                         f"(likely a revision note, not a true supersession)"
                     ),
                     proposed_resolution=(
-                        f"Remove the self-reference from supersedes; if you meant to "
-                        f"track a revision, use the 'amended' field instead"
+                        "Remove the self-reference from supersedes; if you meant to "
+                        "track a revision, use the 'amended' field instead"
                     ),
                 ))
                 continue
@@ -198,7 +198,7 @@ def audit_staleness(
 ) -> list[AuditFinding]:
     """ADRs whose last_reviewed + staleness_months has passed are stale."""
     findings: list[AuditFinding] = []
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     for adr in graph.adrs:
         # Check proposed and active ADRs — drafts can rot too
         if adr.status in (Status.SUPERSEDED, Status.DEPRECATED, Status.REJECTED):
@@ -216,7 +216,7 @@ def audit_staleness(
             ))
             continue
         try:
-            last_reviewed = datetime.fromisoformat(str(last_reviewed_str)).replace(tzinfo=timezone.utc)
+            last_reviewed = datetime.fromisoformat(str(last_reviewed_str)).replace(tzinfo=UTC)
         except ValueError:
             continue
         # Approximate: 30 days per month
@@ -265,13 +265,13 @@ def audit_open_question_aging(
 ) -> list[AuditFinding]:
     """Open questions whose decide_by is a date and has passed."""
     findings: list[AuditFinding] = []
-    now = now or datetime.now(timezone.utc)
+    now = now or datetime.now(UTC)
     for adr, q in graph.all_open_questions():
         if not q.decide_by:
             continue
         # decide_by may be 'Phase 1' or 'YYYY-MM-DD' — only date-form is auditable here
         try:
-            deadline = datetime.fromisoformat(q.decide_by).replace(tzinfo=timezone.utc)
+            deadline = datetime.fromisoformat(q.decide_by).replace(tzinfo=UTC)
         except ValueError:
             continue
         if now > deadline:
@@ -284,7 +284,7 @@ def audit_open_question_aging(
                     f"is overdue"
                 ),
                 proposed_resolution=(
-                    f"Either resolve the question (set status='resolved') or extend decide_by"
+                    "Either resolve the question (set status='resolved') or extend decide_by"
                 ),
             ))
     return findings
@@ -401,8 +401,8 @@ def audit_redundancy(graph: ConstitutionGraph) -> list[AuditFinding]:
                         f"both active, no supersession link"
                     ),
                     proposed_resolution=(
-                        f"Consider consolidating into one ADR, or add explicit "
-                        f"'depends_on'/'supersedes' relationship to clarify independence"
+                        "Consider consolidating into one ADR, or add explicit "
+                        "'depends_on'/'supersedes' relationship to clarify independence"
                     ),
                     evidence=tuple(sorted(shared_domains)),
                 ))
@@ -419,8 +419,6 @@ def compute_health(graph: ConstitutionGraph, findings: list[AuditFinding]) -> He
     for f in findings:
         counts[f.severity.value] += 1
         by_auditor.setdefault(f.auditor, []).append(f)
-
-    n_active = max(1, sum(1 for a in graph.adrs if a.status.is_active()))
 
     def normalize(auditor: str, weight_per_finding: float = 0.1) -> float:
         n = len(by_auditor.get(auditor, []))

@@ -16,13 +16,12 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Iterable
 
-from iil_adrfw.domain import ADR, Status
-
+from iil_adrfw.domain import ADR, OpenQuestion, Status
 
 # --- Tokenization for concept index ---
 
@@ -122,7 +121,7 @@ class ConstitutionGraph:
                 results.append(adr)
         return results
 
-    def all_open_questions(self) -> list[tuple[ADR, "OpenQuestion"]]:  # type: ignore[name-defined]
+    def all_open_questions(self) -> list[tuple[ADR, OpenQuestion]]:
         out = []
         for adr in self.adrs:
             for q in adr.open_questions:
@@ -168,7 +167,6 @@ def execute_query(
     AND-narrow.
     """
     primary: list[ADR] = []
-    supporting: list[ADR] = []
     matched_concepts: dict[str, set[str]] = {}
     routing = "concept"
 

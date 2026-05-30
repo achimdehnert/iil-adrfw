@@ -7,7 +7,7 @@ Two tools implemented for the skeleton:
 Six more (query, diff, audit, propose, shadow_pr, narrate) will follow.
 """
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
@@ -103,11 +103,11 @@ def _meets_threshold(severity: Severity, threshold: Severity) -> bool:
 
 def _do_check(req: CheckRequest) -> CheckResponse:
     """Pure implementation, callable directly from tests and CLI."""
-    start = datetime.now(timezone.utc)
+    start = datetime.now(UTC)
     repo_root = _repo_root()
 
     adrs = _load_constitution()
-    as_of = req.as_of or datetime.now(timezone.utc)
+    as_of = req.as_of or datetime.now(UTC)
     threshold = Severity(req.severity_threshold)
 
     # Collect applicable rules
@@ -141,7 +141,7 @@ def _do_check(req: CheckRequest) -> CheckResponse:
             violations = checker.check(rule, f, source)
             all_violations.extend(violations)
 
-    elapsed_ms = int((datetime.now(timezone.utc) - start).total_seconds() * 1000)
+    elapsed_ms = int((datetime.now(UTC) - start).total_seconds() * 1000)
 
     out_violations = [
         ViolationOut(
@@ -719,7 +719,7 @@ class DiffResponse(BaseModel):
 
 
 def _do_diff(req: DiffRequest) -> DiffResponse:
-    from iil_adrfw.diff import diff_temporal, diff_set
+    from iil_adrfw.diff import diff_set, diff_temporal
 
     if req.mode == "temporal":
         if req.left_time is None or req.right_time is None:
@@ -923,7 +923,7 @@ class ValidateResponse(BaseModel):
 
 
 def _do_validate(req: ValidateRequest) -> ValidateResponse:
-    from iil_adrfw.persistence import load_adr, ADRLoadError
+    from iil_adrfw.persistence import ADRLoadError, load_adr
     from iil_adrfw.schemas import get_schema_dir
 
     adr_dir = Path(req.adr_dir) if req.adr_dir else _adrs_dir()
@@ -981,7 +981,7 @@ def adr_staleness(req: StalenessRequest) -> StalenessResponse:
     """Check ADRs for staleness (age > threshold) and reference drift (broken superseded_by, depends_on)."""
     from datetime import date, timedelta
 
-    from iil_adrfw.persistence import load_adr, ADRLoadError
+    from iil_adrfw.persistence import load_adr
     from iil_adrfw.schemas import get_schema_dir
 
     adr_dir = Path(req.adr_dir) if req.adr_dir else _adrs_dir()
@@ -1068,7 +1068,6 @@ class ImpactResponse(BaseModel):
 def adr_impact(req: ImpactRequest) -> ImpactResponse:
     """Given a file path, find which ADRs apply. Matches on scope patterns, domains, and repo references."""
     import fnmatch
-    import re
 
     adrs = _load_constitution()
     file_p = req.file_path
@@ -1191,7 +1190,7 @@ def adr_freshness(req: FreshnessRequest) -> FreshnessResponse:
     Phase 1+2: deterministic, no LLM. Extracts version/port/image claims from
     ADR markdown body and compares against docker-compose and requirements files.
     """
-    from iil_adrfw.freshness import extract_claims, check_freshness
+    from iil_adrfw.freshness import check_freshness, extract_claims
 
     adrs = _load_constitution()
     repo_root = Path(req.repo_path).resolve()
@@ -1224,7 +1223,6 @@ def adr_freshness(req: FreshnessRequest) -> FreshnessResponse:
                 all_claims = extract_claims(adr.id, adr.body_markdown)
                 break
     else:
-        from iil_adrfw.domain import Status
         for adr in adrs:
             if adr.status.is_active() and adr.body_markdown and _is_relevant(adr):
                 all_claims.extend(extract_claims(adr.id, adr.body_markdown))
