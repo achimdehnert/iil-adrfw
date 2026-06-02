@@ -1,5 +1,6 @@
 """Tests for the headless CLI — verify all 9 commands work, exit codes are
 correct, JSON output is valid."""
+
 import json
 import os
 import shutil
@@ -31,12 +32,15 @@ def _run(args: list[str], expect_exit: int | None = None) -> tuple[int, str, str
     }
     res = subprocess.run(
         [sys.executable, "-m", "iil_adrfw.cli", *args],
-        capture_output=True, text=True, env=env, cwd=PROJECT_ROOT,
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=PROJECT_ROOT,
     )
     if expect_exit is not None:
-        assert res.returncode == expect_exit, \
-            f"expected exit {expect_exit}, got {res.returncode}\n" \
-            f"stdout:\n{res.stdout}\nstderr:\n{res.stderr}"
+        assert res.returncode == expect_exit, (
+            f"expected exit {expect_exit}, got {res.returncode}\nstdout:\n{res.stdout}\nstderr:\n{res.stderr}"
+        )
     return res.returncode, res.stdout, res.stderr
 
 
@@ -45,8 +49,7 @@ def test_help_works():
     print("TEST: --help shows all 9 commands")
     print("=" * 70)
     rc, out, err = _run(["--help"], expect_exit=0)
-    for cmd in ("check", "explain", "list", "validate-cross-repo", "query",
-                "audit", "propose", "diff", "narrate"):
+    for cmd in ("check", "explain", "list", "validate-cross-repo", "query", "audit", "propose", "diff", "narrate"):
         assert cmd in out, f"missing command in help: {cmd}"
     print("  PASS: all 9 commands listed in --help\n")
 
@@ -120,10 +123,15 @@ def test_explain_command():
     print("=" * 70)
     print("TEST: explain a concrete rule")
     print("=" * 70)
-    rc, out, err = _run([
-        "explain", "ADR-099/tenant-id-bigint",
-        "--audience", "new_dev",
-    ], expect_exit=0)
+    rc, out, err = _run(
+        [
+            "explain",
+            "ADR-099/tenant-id-bigint",
+            "--audience",
+            "new_dev",
+        ],
+        expect_exit=0,
+    )
     assert "Severity:" in out
     assert "## Why" in out
     print(f"  output length: {len(out)}b, contains 'Severity:' and '## Why'")
@@ -134,12 +142,17 @@ def test_diff_temporal():
     print("=" * 70)
     print("TEST: diff temporal mode")
     print("=" * 70)
-    rc, out, err = _run([
-        "diff",
-        "--mode", "temporal",
-        "--left-time", "2020-01-01T00:00:00",
-        "--right-time", "2026-12-31T00:00:00",
-    ])
+    rc, out, err = _run(
+        [
+            "diff",
+            "--mode",
+            "temporal",
+            "--left-time",
+            "2020-01-01T00:00:00",
+            "--right-time",
+            "2026-12-31T00:00:00",
+        ]
+    )
     # exit 1 expected because there ARE changes (everything was added since 2020)
     assert rc in (0, 1)
     assert "Diff (temporal):" in out or "{" in out  # text or JSON depending on default
@@ -151,11 +164,16 @@ def test_narrate_emits_markdown_by_default():
     print("=" * 70)
     print("TEST: narrate writes markdown to stdout (default), no --json needed")
     print("=" * 70)
-    rc, out, err = _run([
-        "narrate",
-        "--audience", "auditor",
-        "--id", "ADR-099",
-    ], expect_exit=0)
+    rc, out, err = _run(
+        [
+            "narrate",
+            "--audience",
+            "auditor",
+            "--id",
+            "ADR-099",
+        ],
+        expect_exit=0,
+    )
     # Must be markdown — start with H1
     assert out.startswith("# "), f"expected markdown, got: {out[:80]!r}"
     assert "## Overview" in out
@@ -179,13 +197,19 @@ def test_propose_outputs_frontmatter():
     print("=" * 70)
     print("TEST: propose generates frontmatter + body prompt")
     print("=" * 70)
-    rc, out, err = _run([
-        "propose",
-        "--title", "Test ADR for CLI smoke testing only",
-        "--rationale", "We need to verify that propose works through the CLI; this is a fixture rationale long enough to pass min_length validation",
-        "--domain", "test",
-        "--decider", "Achim Dehnert",
-    ])
+    rc, out, err = _run(
+        [
+            "propose",
+            "--title",
+            "Test ADR for CLI smoke testing only",
+            "--rationale",
+            "We need to verify that propose works through the CLI; this is a fixture rationale long enough to pass min_length validation",
+            "--domain",
+            "test",
+            "--decider",
+            "Achim Dehnert",
+        ]
+    )
     assert rc in (0, 1), f"unexpected exit {rc}\nstdout:\n{out}\nstderr:\n{err}"
     assert "Proposed ADR:" in out
     assert "frontmatter" in out

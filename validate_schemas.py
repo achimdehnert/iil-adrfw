@@ -1,6 +1,8 @@
 """Validate that the three schemas themselves are valid JSON Schema 2020-12."""
+
 import json
 from pathlib import Path
+
 from jsonschema import Draft202012Validator
 
 schemas_dir = Path("/home/claude/iil-adrfw/schemas")

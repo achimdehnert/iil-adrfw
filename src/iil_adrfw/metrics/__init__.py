@@ -53,7 +53,7 @@ def compute_all(adrs: list[Any]) -> dict[str, ADRMetrics]:
     # Pass 1: inbound_links — count how many ADRs depend_on each ADR
     inbound: dict[str, int] = defaultdict(int)
     for adr in adrs:
-        for dep in (adr.depends_on or []):
+        for dep in adr.depends_on or []:
             dep_str = dep if isinstance(dep, str) else str(dep)
             # Normalize: extract "ADR-NNN"
             m = re.search(r"ADR-\d+", dep_str, re.IGNORECASE)

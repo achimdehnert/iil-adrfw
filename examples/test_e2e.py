@@ -1,9 +1,10 @@
 """End-to-end smoke test: load ADR-099, run adr_check on the synthetic app,
 verify it finds the two drifted models and ignores the compliant one.
 """
-import os
-import shutil
-from pathlib import Path
+
+import os  # noqa: E402
+import shutil  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 # Configure the server to find our test fixtures BEFORE importing it
 BASE = Path(__file__).resolve().parent
@@ -23,9 +24,14 @@ os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
 os.environ["IIL_ADRFW_REPO_ROOT"] = str(REPO_ROOT)
 
 # Now import — the env vars take effect on first call
-from iil_adrfw.server import (
-    _do_check, _do_explain, _do_list_adrs,
-    CheckRequest, ExplainRequest,
+from datetime import UTC  # noqa: E402
+
+from iil_adrfw.server import (  # noqa: E402
+    CheckRequest,
+    ExplainRequest,
+    _do_check,
+    _do_explain,
+    _do_list_adrs,
 )
 
 
@@ -73,7 +79,7 @@ def test_explain_audience_routing():
         print(f"\n--- Audience: {audience} ---")
         print(f"  Rule: {resp.rule}")
         print(f"  Severity: {resp.severity}")
-        print(f"  Explanation:")
+        print("  Explanation:")
         for line in resp.explanation_for_audience.strip().split("\n"):
             print(f"    {line}")
 
@@ -84,13 +90,14 @@ def test_temporal_as_of():
     print("=" * 70)
     print("TEST 3: bi-temporal — check 'as_of' before rule existed")
     print("=" * 70)
-    from datetime import datetime, timezone
+    from datetime import datetime
+
     req = CheckRequest(
         paths=["apps/billing/models.py"],
-        as_of=datetime(2024, 9, 1, tzinfo=timezone.utc),  # before ADR-099 valid_from
+        as_of=datetime(2024, 9, 1, tzinfo=UTC),  # before ADR-099 valid_from
     )
     resp = _do_check(req)
-    print(f"  As-of: 2024-09-01 (before ADR-099 took effect on 2024-09-15)")
+    print("  As-of: 2024-09-01 (before ADR-099 took effect on 2024-09-15)")
     print(f"  Rules evaluated: {resp.rules_evaluated}")
     print(f"  Violations:      {len(resp.violations)}")
     assert resp.rules_evaluated == 0, "rules should not be active yet"

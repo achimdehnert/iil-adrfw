@@ -8,6 +8,7 @@ Exit codes (consistent across subcommands):
 
 JSON output (`--json`) is intended for CI pipelines. Text output is for humans.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -69,8 +70,7 @@ def _cmd_check(args: argparse.Namespace) -> int:
     if args.json:
         _print_json(resp)
     else:
-        print(f"Scanned {resp.files_scanned} files, "
-              f"evaluated {resp.rules_evaluated} rules in {resp.runtime_ms}ms")
+        print(f"Scanned {resp.files_scanned} files, evaluated {resp.rules_evaluated} rules in {resp.runtime_ms}ms")
         print(f"Loaded {resp.constitution_loaded} ADRs from constitution\n")
         if not resp.violations:
             print("OK — no violations")
@@ -130,6 +130,7 @@ def _cmd_list(args: argparse.Namespace) -> int:
 
 def _cmd_validate_cross_repo(args: argparse.Namespace) -> int:
     from iil_adrfw.server import ConsumerRepoSpec
+
     if not args.repos:
         print("error: at least one --repo NAME=PATH required", file=sys.stderr)
         return 2
@@ -164,12 +165,15 @@ def _cmd_validate_cross_repo(args: argparse.Namespace) -> int:
 
 
 def _add_validate_cross_repo_parser(sub):
-    p = sub.add_parser("validate-cross-repo",
-                       help="Validate an ADR's rules against consumer repos")
-    p.add_argument("--adr-id", required=True, dest="adr_id",
-                   help="ADR to validate, e.g. 'ADR-188'")
-    p.add_argument("--repo", action="append", dest="repos", default=[],
-                   help="Consumer repo as NAME=PATH (repeatable, at least 1 required)")
+    p = sub.add_parser("validate-cross-repo", help="Validate an ADR's rules against consumer repos")
+    p.add_argument("--adr-id", required=True, dest="adr_id", help="ADR to validate, e.g. 'ADR-188'")
+    p.add_argument(
+        "--repo",
+        action="append",
+        dest="repos",
+        default=[],
+        help="Consumer repo as NAME=PATH (repeatable, at least 1 required)",
+    )
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=_cmd_validate_cross_repo)
 
@@ -244,6 +248,7 @@ def _cmd_propose(args: argparse.Namespace) -> int:
         _print_json(resp)
     else:
         import yaml as _yaml
+
         print(f"Proposed ADR: {resp.proposed_id}\n")
         print("--- frontmatter ---")
         print(_yaml.safe_dump(resp.frontmatter, sort_keys=False, allow_unicode=True))
@@ -296,8 +301,7 @@ def _cmd_diff(args: argparse.Namespace) -> int:
 
 def _cmd_narrate(args: argparse.Namespace) -> int:
     if not (args.domain or args.id_set or args.path_filter):
-        print("error: at least one of --domain, --id, --path-filter required",
-              file=sys.stderr)
+        print("error: at least one of --domain, --id, --path-filter required", file=sys.stderr)
         return 2
     req = NarrateRequest(
         audience=args.audience,
@@ -347,7 +351,7 @@ def _cmd_validate(args: argparse.Namespace) -> int:
             load_adr(md, schema_dir, validate=True)
             ok.append(md.name)
         except ADRLoadError as e:
-            msg = str(e).split('\n')[1] if '\n' in str(e) else str(e)[:120]
+            msg = str(e).split("\n")[1] if "\n" in str(e) else str(e)[:120]
             failures.append((md.name, msg))
         except Exception as e:
             failures.append((md.name, f"{type(e).__name__}: {str(e)[:100]}"))
@@ -364,15 +368,19 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     pct = 100 * len(ok) / total if total else 0
 
     if args.json:
-        _print_json({
-            "total": total, "passed": len(ok), "failed": len(failures),
-            "percent": round(pct, 1),
-            "failures": [{"file": f, "error": e} for f, e in failures],
-            "deprecation_warnings": [
-                {"file": f, "aliases": [{"legacy": legacy, "canonical": canonical} for legacy, canonical in al]}
-                for f, al in alias_warnings
-            ],
-        })
+        _print_json(
+            {
+                "total": total,
+                "passed": len(ok),
+                "failed": len(failures),
+                "percent": round(pct, 1),
+                "failures": [{"file": f, "error": e} for f, e in failures],
+                "deprecation_warnings": [
+                    {"file": f, "aliases": [{"legacy": legacy, "canonical": canonical} for legacy, canonical in al]}
+                    for f, al in alias_warnings
+                ],
+            }
+        )
     else:
         print(f"ADR Frontmatter Validation: {len(ok)}/{total} ({pct:.1f}%)")
         if failures:
@@ -382,7 +390,9 @@ def _cmd_validate(args: argparse.Namespace) -> int:
         else:
             print("  ✓ All ADRs valid")
         if alias_warnings:
-            print(f"\nDEPRECATION ({len(alias_warnings)}) — non-canonical frontmatter keys (normalized, please migrate):")
+            print(
+                f"\nDEPRECATION ({len(alias_warnings)}) — non-canonical frontmatter keys (normalized, please migrate):"
+            )
             for name, aliases in alias_warnings:
                 hint = ", ".join(f"'{legacy}' → '{canonical}'" for legacy, canonical in aliases)
                 print(f"  {name}: {hint}")
@@ -429,36 +439,40 @@ def _cmd_staleness(args: argparse.Namespace) -> int:
 
             # Staleness: check decision_date
             adr_date = None
-            if hasattr(adr, 'decision_date') and adr.decision_date:
+            if hasattr(adr, "decision_date") and adr.decision_date:
                 try:
                     adr_date = date.fromisoformat(str(adr.decision_date)[:10])
                 except (ValueError, TypeError):
                     pass
 
-            status = adr.status.value if hasattr(adr.status, 'value') else str(adr.status)
+            status = adr.status.value if hasattr(adr.status, "value") else str(adr.status)
 
             # Skip deprecated/superseded for staleness
-            if status.lower() in ('deprecated', 'superseded', 'rejected'):
+            if status.lower() in ("deprecated", "superseded", "rejected"):
                 continue
 
             if adr_date and adr_date < threshold:
                 age_months = (today - adr_date).days // 30
-                findings.append({
-                    "adr_id": adr_id,
-                    "type": "stale",
-                    "severity": "warning",
-                    "message": f"Last decision date {adr_date} ({age_months}mo ago, threshold: {max_months}mo)",
-                })
+                findings.append(
+                    {
+                        "adr_id": adr_id,
+                        "type": "stale",
+                        "severity": "warning",
+                        "message": f"Last decision date {adr_date} ({age_months}mo ago, threshold: {max_months}mo)",
+                    }
+                )
 
             # Missing review_status on accepted ADRs
-            review = getattr(adr, 'review_status', None)
-            if status.lower() == 'accepted' and not review:
-                findings.append({
-                    "adr_id": adr_id,
-                    "type": "no_review",
-                    "severity": "info",
-                    "message": "Accepted ADR without review_status field",
-                })
+            review = getattr(adr, "review_status", None)
+            if status.lower() == "accepted" and not review:
+                findings.append(
+                    {
+                        "adr_id": adr_id,
+                        "type": "no_review",
+                        "severity": "info",
+                        "message": "Accepted ADR without review_status field",
+                    }
+                )
 
         except (ADRLoadError, Exception):
             continue
@@ -467,38 +481,44 @@ def _cmd_staleness(args: argparse.Namespace) -> int:
     for adr in adrs_data:
         adr_id = adr.id
         # Check superseded_by (can be string or list)
-        sup_by = getattr(adr, 'superseded_by', None)
+        sup_by = getattr(adr, "superseded_by", None)
         if sup_by:
             refs = sup_by if isinstance(sup_by, (list, tuple)) else [sup_by]
             for ref in refs:
                 ref_str = str(ref).strip()
                 if ref_str and ref_str not in all_ids:
-                    findings.append({
-                        "adr_id": adr_id,
-                        "type": "broken_ref",
-                        "severity": "error",
-                        "message": f"superseded_by references '{ref_str}' which does not exist",
-                    })
+                    findings.append(
+                        {
+                            "adr_id": adr_id,
+                            "type": "broken_ref",
+                            "severity": "error",
+                            "message": f"superseded_by references '{ref_str}' which does not exist",
+                        }
+                    )
         # Check depends_on
-        deps = getattr(adr, 'depends_on', None) or []
+        deps = getattr(adr, "depends_on", None) or []
         for dep in deps:
             if dep not in all_ids:
-                findings.append({
-                    "adr_id": adr_id,
-                    "type": "broken_ref",
-                    "severity": "warning",
-                    "message": f"depends_on references '{dep}' which does not exist",
-                })
+                findings.append(
+                    {
+                        "adr_id": adr_id,
+                        "type": "broken_ref",
+                        "severity": "warning",
+                        "message": f"depends_on references '{dep}' which does not exist",
+                    }
+                )
         # Check related
-        related = getattr(adr, 'related', None) or []
+        related = getattr(adr, "related", None) or []
         for rel in related:
             if rel.startswith("ADR-") and rel not in all_ids:
-                findings.append({
-                    "adr_id": adr_id,
-                    "type": "broken_ref",
-                    "severity": "info",
-                    "message": f"related references '{rel}' which does not exist",
-                })
+                findings.append(
+                    {
+                        "adr_id": adr_id,
+                        "type": "broken_ref",
+                        "severity": "info",
+                        "message": f"related references '{rel}' which does not exist",
+                    }
+                )
 
     # Output
     stale_count = len([f for f in findings if f["type"] == "stale"])
@@ -506,13 +526,15 @@ def _cmd_staleness(args: argparse.Namespace) -> int:
     review_count = len([f for f in findings if f["type"] == "no_review"])
 
     if args.json:
-        _print_json({
-            "total_adrs": len(md_files),
-            "stale_count": stale_count,
-            "broken_refs": ref_count,
-            "missing_reviews": review_count,
-            "findings": findings,
-        })
+        _print_json(
+            {
+                "total_adrs": len(md_files),
+                "stale_count": stale_count,
+                "broken_refs": ref_count,
+                "missing_reviews": review_count,
+                "findings": findings,
+            }
+        )
     else:
         print(f"Staleness Report: {len(md_files)} ADRs scanned (threshold: {max_months}mo)\n")
         print(f"  Stale ADRs:       {stale_count}")
@@ -534,10 +556,10 @@ def _cmd_staleness(args: argparse.Namespace) -> int:
 def _add_staleness_parser(sub):
     p = sub.add_parser("staleness", help="Check ADRs for staleness and reference drift")
     p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
-    p.add_argument("--months", type=int, default=6,
-                   help="Staleness threshold in months (default: 6)")
-    p.add_argument("--schema-dir", dest="schema_dir",
-                   help="Directory containing JSON schema files (default: auto-detect)")
+    p.add_argument("--months", type=int, default=6, help="Staleness threshold in months (default: 6)")
+    p.add_argument(
+        "--schema-dir", dest="schema_dir", help="Directory containing JSON schema files (default: auto-detect)"
+    )
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=_cmd_staleness)
 
@@ -563,15 +585,17 @@ def _cmd_graph(args: argparse.Namespace) -> int:
     for md in md_files:
         try:
             adr = load_adr(md, schema_dir, validate=False)
-            adrs_meta.append({
-                "id": adr.id,
-                "title": adr.title[:40],
-                "status": adr.status.value if hasattr(adr.status, 'value') else str(adr.status),
-                "superseded_by": getattr(adr, 'superseded_by', None),
-                "depends_on": getattr(adr, 'depends_on', None) or [],
-                "related": getattr(adr, 'related', None) or [],
-                "amends": getattr(adr, 'amends', None) or [],
-            })
+            adrs_meta.append(
+                {
+                    "id": adr.id,
+                    "title": adr.title[:40],
+                    "status": adr.status.value if hasattr(adr.status, "value") else str(adr.status),
+                    "superseded_by": getattr(adr, "superseded_by", None),
+                    "depends_on": getattr(adr, "depends_on", None) or [],
+                    "related": getattr(adr, "related", None) or [],
+                    "amends": getattr(adr, "amends", None) or [],
+                }
+            )
         except Exception:
             continue
 
@@ -598,13 +622,16 @@ def _cmd_graph(args: argparse.Namespace) -> int:
         print("  rankdir=LR;")
         print("  node [shape=box, style=filled, fontsize=10];")
         status_colors = {
-            "accepted": "#d4edda", "proposed": "#fff3cd",
-            "draft": "#e2e3e5", "deprecated": "#ffeeba",
-            "superseded": "#f8d7da", "rejected": "#f5c6cb",
+            "accepted": "#d4edda",
+            "proposed": "#fff3cd",
+            "draft": "#e2e3e5",
+            "deprecated": "#ffeeba",
+            "superseded": "#f8d7da",
+            "rejected": "#f5c6cb",
         }
         for adr in adrs_meta:
             color = status_colors.get(adr["status"], "#ffffff")
-            label = f'{adr["id"]}\\n{adr["title"]}'
+            label = f"{adr['id']}\\n{adr['title']}"
             print(f'  "{adr["id"]}" [label="{label}", fillcolor="{color}"];')
         edge_styles = {
             "superseded_by": "[color=red, style=dashed, label=supersedes]",
@@ -617,12 +644,14 @@ def _cmd_graph(args: argparse.Namespace) -> int:
             print(f'  "{src}" -> "{dst}" {style};')
         print("}")
     elif args.json:
-        _print_json({
-            "nodes": len(adrs_meta),
-            "edges": len(edges),
-            "adrs": [{"id": a["id"], "status": a["status"]} for a in adrs_meta],
-            "relationships": [{"from": s, "to": d, "type": t} for s, d, t in edges],
-        })
+        _print_json(
+            {
+                "nodes": len(adrs_meta),
+                "edges": len(edges),
+                "adrs": [{"id": a["id"], "status": a["status"]} for a in adrs_meta],
+                "relationships": [{"from": s, "to": d, "type": t} for s, d, t in edges],
+            }
+        )
     else:
         print(f"ADR Dependency Graph: {len(adrs_meta)} nodes, {len(edges)} edges\n")
         if not edges:
@@ -642,8 +671,9 @@ def _cmd_graph(args: argparse.Namespace) -> int:
 def _add_graph_parser(sub):
     p = sub.add_parser("graph", help="Generate ADR dependency graph")
     p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
-    p.add_argument("--schema-dir", dest="schema_dir",
-                   help="Directory containing JSON schema files (default: auto-detect)")
+    p.add_argument(
+        "--schema-dir", dest="schema_dir", help="Directory containing JSON schema files (default: auto-detect)"
+    )
     p.add_argument("--dot", action="store_true", help="Output in Graphviz DOT format")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=_cmd_graph)
@@ -671,13 +701,17 @@ def _cmd_export(args: argparse.Namespace) -> int:
     for md in md_files:
         try:
             adr = load_adr(md, schema_dir, validate=False)
-            status = adr.status.value if hasattr(adr.status, 'value') else str(adr.status)
-            adrs.append({
-                "id": adr.id, "title": adr.title, "status": status,
-                "date": str(getattr(adr, 'decision_date', '') or ''),
-                "domains": getattr(adr, 'domains', []) or [],
-                "scope": str(getattr(adr, 'scope', '') or ''),
-            })
+            status = adr.status.value if hasattr(adr.status, "value") else str(adr.status)
+            adrs.append(
+                {
+                    "id": adr.id,
+                    "title": adr.title,
+                    "status": status,
+                    "date": str(getattr(adr, "decision_date", "") or ""),
+                    "domains": getattr(adr, "domains", []) or [],
+                    "scope": str(getattr(adr, "scope", "") or ""),
+                }
+            )
         except Exception:
             continue
 
@@ -695,18 +729,21 @@ def _cmd_export(args: argparse.Namespace) -> int:
 
     # Status counts
     from collections import Counter
+
     status_counts = Counter(a["status"] for a in adrs)
     for status, count in sorted(status_counts.items(), key=lambda x: -x[1]):
         lines.append(f"- **{status}**: {count}")
     lines.append("")
 
     # Table
-    lines.extend([
-        "## Full Index",
-        "",
-        "| ID | Title | Status | Date | Domains |",
-        "|---|---|---|---|---|",
-    ])
+    lines.extend(
+        [
+            "## Full Index",
+            "",
+            "| ID | Title | Status | Date | Domains |",
+            "|---|---|---|---|---|",
+        ]
+    )
     for a in adrs:
         domains = ", ".join(a["domains"][:3]) if a["domains"] else "—"
         title = a["title"][:50] + ("…" if len(a["title"]) > 50 else "")
@@ -727,8 +764,9 @@ def _cmd_export(args: argparse.Namespace) -> int:
 def _add_export_parser(sub):
     p = sub.add_parser("export", help="Export ADR registry as Outline-compatible markdown")
     p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
-    p.add_argument("--schema-dir", dest="schema_dir",
-                   help="Directory containing JSON schema files (default: auto-detect)")
+    p.add_argument(
+        "--schema-dir", dest="schema_dir", help="Directory containing JSON schema files (default: auto-detect)"
+    )
     p.add_argument("-o", "--output", help="Output file path (default: stdout)")
     p.set_defaults(func=_cmd_export)
 
@@ -736,8 +774,9 @@ def _add_export_parser(sub):
 def _add_validate_parser(sub):
     p = sub.add_parser("validate", help="Validate ADR frontmatter against schema v3")
     p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
-    p.add_argument("--schema-dir", dest="schema_dir",
-                   help="Directory containing JSON schema files (default: auto-detect)")
+    p.add_argument(
+        "--schema-dir", dest="schema_dir", help="Directory containing JSON schema files (default: auto-detect)"
+    )
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=_cmd_validate)
 
@@ -745,10 +784,8 @@ def _add_validate_parser(sub):
 def _add_check_parser(sub):
     p = sub.add_parser("check", help="Run rules against code paths")
     p.add_argument("paths", nargs="+")
-    p.add_argument("--rule", action="append", default=[],
-                   help="Filter to specific rule ids (repeatable)")
-    p.add_argument("--severity", default="warning",
-                   choices=["info", "warning", "error", "critical"])
+    p.add_argument("--rule", action="append", default=[], help="Filter to specific rule ids (repeatable)")
+    p.add_argument("--severity", default="warning", choices=["info", "warning", "error", "critical"])
     p.add_argument("--as-of", help="ISO timestamp; check constitution as of this time")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=_cmd_check)
@@ -757,8 +794,7 @@ def _add_check_parser(sub):
 def _add_explain_parser(sub):
     p = sub.add_parser("explain", help="Explain a rule for an audience")
     p.add_argument("rule_id")
-    p.add_argument("--audience", default="senior",
-                   choices=["new_dev", "senior", "architect", "auditor"])
+    p.add_argument("--audience", default="senior", choices=["new_dev", "senior", "architect", "auditor"])
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=_cmd_explain)
 
@@ -780,8 +816,7 @@ def _add_query_parser(sub):
 
 def _add_audit_parser(sub):
     p = sub.add_parser("audit", help="Run constitution-level audit")
-    p.add_argument("--auditor", action="append", default=[],
-                   help="Run only specific auditors (repeatable)")
+    p.add_argument("--auditor", action="append", default=[], help="Run only specific auditors (repeatable)")
     p.add_argument("--as-of", help="ISO timestamp; audit constitution as of this time")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=_cmd_audit)
@@ -790,12 +825,11 @@ def _add_audit_parser(sub):
 def _add_propose_parser(sub):
     p = sub.add_parser("propose", help="Propose a new ADR (returns frontmatter + body prompt)")
     p.add_argument("--title", required=True)
-    p.add_argument("--rationale", required=True,
-                   help="Rationale summary (min 20 chars) — drives concept matching and body prompt")
-    p.add_argument("--domain", action="append", required=True,
-                   help="Domain tag (repeatable, at least 1 required)")
-    p.add_argument("--decider", action="append", required=True,
-                   help="Decider name (repeatable, at least 1 required)")
+    p.add_argument(
+        "--rationale", required=True, help="Rationale summary (min 20 chars) — drives concept matching and body prompt"
+    )
+    p.add_argument("--domain", action="append", required=True, help="Domain tag (repeatable, at least 1 required)")
+    p.add_argument("--decider", action="append", required=True, help="Decider name (repeatable, at least 1 required)")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=_cmd_propose)
 
@@ -814,14 +848,11 @@ def _add_diff_parser(sub):
 
 def _add_narrate_parser(sub):
     p = sub.add_parser("narrate", help="Compose audience-tailored narrative")
-    p.add_argument("--audience", default="senior",
-                   choices=["new_dev", "senior", "architect", "auditor"])
+    p.add_argument("--audience", default="senior", choices=["new_dev", "senior", "architect", "auditor"])
     p.add_argument("--domain", help="Pick ADRs by domain tag")
-    p.add_argument("--id", action="append", dest="id_set", default=[],
-                   help="Pick ADRs by id (repeatable)")
+    p.add_argument("--id", action="append", dest="id_set", default=[], help="Pick ADRs by id (repeatable)")
     p.add_argument("--path-filter", help="Pick ADRs whose scope matches this path")
-    p.add_argument("--scope-label", default="the constitution",
-                   help="Free-text label used in the narrative title")
+    p.add_argument("--scope-label", default="the constitution", help="Free-text label used in the narrative title")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=_cmd_narrate)
 
@@ -854,6 +885,7 @@ def _cmd_metrics(args: argparse.Namespace) -> int:
 
     if args.json:
         import json
+
         out = {
             mid: {
                 "inbound_links": m.inbound_links,
@@ -872,13 +904,10 @@ def _cmd_metrics(args: argparse.Namespace) -> int:
 
 def _add_metrics_parser(sub):
     p = sub.add_parser("metrics", help="Compute Schema v4 metrics (inbound_links, ttd, ttr, ai_interactions)")
-    p.add_argument("--adr-dir", default=None,
-                   help="ADR directory (default: $IIL_ADRFW_ADRS_DIR or ./docs/adr)")
+    p.add_argument("--adr-dir", default=None, help="ADR directory (default: $IIL_ADRFW_ADRS_DIR or ./docs/adr)")
     p.add_argument("--schema-dir", default=None)
-    p.add_argument("--write", action="store_true",
-                   help="Write computed metrics into ADR frontmatters")
-    p.add_argument("--report", action="store_true",
-                   help="Print controlling report (always shown without --write)")
+    p.add_argument("--write", action="store_true", help="Write computed metrics into ADR frontmatters")
+    p.add_argument("--report", action="store_true", help="Print controlling report (always shown without --write)")
     p.add_argument("--json", action="store_true", help="Output raw JSON")
     p.set_defaults(func=_cmd_metrics)
 

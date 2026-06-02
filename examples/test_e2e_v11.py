@@ -1,8 +1,9 @@
 """ADR-188 v1.1 specific tests — exercise new schema fields end-to-end."""
-import os
-import shutil
-from datetime import datetime, timezone
-from pathlib import Path
+
+import os  # noqa: E402
+import shutil  # noqa: E402
+from datetime import UTC, datetime  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 BASE = Path(__file__).resolve().parent
 ADRS_DIR = BASE / "_test_adrs_v11"
@@ -14,16 +15,20 @@ if ADRS_DIR.exists():
 ADRS_DIR.mkdir(parents=True)
 
 # Stage both ADR-099 and ADR-188 v1.1
-for fn in ["ADR-099-multi-tenancy.md", "ADR-099-multi-tenancy.rules.yaml",
-           "ADR-188-unified-vector-store.md", "ADR-188-unified-vector-store.rules.yaml"]:
+for fn in [
+    "ADR-099-multi-tenancy.md",
+    "ADR-099-multi-tenancy.rules.yaml",
+    "ADR-188-unified-vector-store.md",
+    "ADR-188-unified-vector-store.rules.yaml",
+]:
     shutil.copy(BASE / fn, ADRS_DIR)
 
 os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
 os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
 os.environ["IIL_ADRFW_REPO_ROOT"] = str(REPO_ROOT)
 
-from iil_adrfw.persistence import load_adrs
-from iil_adrfw.domain import Status
+from iil_adrfw.domain import Status  # noqa: E402
+from iil_adrfw.persistence import load_adrs  # noqa: E402
 
 
 def test_adr188_v11_loads():
@@ -81,8 +86,9 @@ def test_per_repo_status_query():
     # Cross-check: same ADR, different states
     platform_status, platform_impl = adr.status_in_repo("platform")
     mcphub_status, mcphub_impl = adr.status_in_repo("mcp-hub")
-    assert platform_status != mcphub_status or platform_impl != mcphub_impl, \
+    assert platform_status != mcphub_status or platform_impl != mcphub_impl, (
         "Polyrepo states should differ for at least one pair"
+    )
     print("\nPASS: polyrepo per-repo states correctly differ\n")
 
 
@@ -163,7 +169,7 @@ def test_v11_uuid_rule_is_critical():
 
     # The UUID rule was learned on 2026-05-08 (the v1.1 amendment date) but
     # valid_from is 2026-05-21 (Phase 1 deployment) — different from rule itself
-    assert uuid_rule.temporal.knowledge_from == datetime(2026, 5, 8, tzinfo=timezone.utc)
+    assert uuid_rule.temporal.knowledge_from == datetime(2026, 5, 8, tzinfo=UTC)
     print("\nPASS: v1.1 introduces critical-severity rules with bi-temporal accuracy\n")
 
 

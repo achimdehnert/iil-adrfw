@@ -3,6 +3,7 @@
 These are the types that flow through the rest of the system.
 Persistence (markdown/yaml loading) is in iil_adrfw.persistence.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field

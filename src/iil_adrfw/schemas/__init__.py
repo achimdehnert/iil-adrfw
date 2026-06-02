@@ -1,4 +1,5 @@
 """Bundled JSON Schema files for ADR validation."""
+
 from pathlib import Path
 
 SCHEMAS_DIR = Path(__file__).parent

@@ -4,10 +4,10 @@ Tests cover all C.1-C.8 normalization steps and the schema field changes.
 Each test is isolated: stages exactly the fixture it needs, then loads with
 strict validation (validate=True) and verifies behavior.
 """
-import os
-import shutil
-from datetime import datetime, timezone
-from pathlib import Path
+
+import os  # noqa: E402
+import shutil  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 BASE = Path(__file__).resolve().parent
 ADRS_DIR = BASE / "_test_adrs_v3"
@@ -20,11 +20,14 @@ ADRS_DIR.mkdir(parents=True)
 os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
 os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
 
-from iil_adrfw.persistence import (
-    ADRLoadError, _normalize_status, load_adr, load_adrs,
-    detect_legacy_aliases, original_frontmatter,
+from iil_adrfw.persistence import (  # noqa: E402
+    ADRLoadError,
+    _normalize_status,
+    detect_legacy_aliases,
+    load_adr,
+    load_adrs,
+    original_frontmatter,
 )
-
 
 # Common minimal frontmatter — extended in each test
 _BASE = """---
@@ -80,8 +83,7 @@ def test_status_normalization_unit():
 def test_status_uppercase_loads_strict():
     """ADR with status: 'Accepted' (uppercase) loads under strict validation."""
     _cleanup()
-    _stage("ADR-501.md", _BASE.format(nnn="501", extra="").replace(
-        "status: accepted", 'status: "Accepted"'))
+    _stage("ADR-501.md", _BASE.format(nnn="501", extra="").replace("status: accepted", 'status: "Accepted"'))
     adrs = load_adrs(ADRS_DIR, SCHEMAS_DIR, validate=True)
     assert len(adrs) == 1
     assert adrs[0].status.value == "accepted"
@@ -91,8 +93,7 @@ def test_status_uppercase_loads_strict():
 def test_status_with_version_suffix():
     """ADR with 'accepted (v2)' loads under strict validation."""
     _cleanup()
-    _stage("ADR-502.md", _BASE.format(nnn="502", extra="").replace(
-        "status: accepted", 'status: "accepted (v2)"'))
+    _stage("ADR-502.md", _BASE.format(nnn="502", extra="").replace("status: accepted", 'status: "accepted (v2)"'))
     adrs = load_adrs(ADRS_DIR, SCHEMAS_DIR, validate=True)
     assert len(adrs) == 1
     assert adrs[0].status.value == "accepted"
@@ -330,13 +331,7 @@ def test_amended_as_plain_date_normalized():
 def test_amended_proper_list_preserved():
     """amended as proper list of Amendments is preserved unchanged."""
     _cleanup()
-    extra = (
-        'amended:\n'
-        '  - version: "v1.1"\n'
-        '    at: "2026-05-08"\n'
-        '    by: "Achim"\n'
-        '    summary: "Bug-fix amendment"\n'
-    )
+    extra = 'amended:\n  - version: "v1.1"\n    at: "2026-05-08"\n    by: "Achim"\n    summary: "Bug-fix amendment"\n'
     _stage("ADR-551.md", _BASE.format(nnn="551", extra=extra))
     adrs = load_adrs(ADRS_DIR, SCHEMAS_DIR, validate=True)
     assert len(adrs[0].amendments) == 1
@@ -353,8 +348,8 @@ def test_new_fields_load_and_appear_on_domain_object():
     _cleanup()
     extra = (
         'updated: "2026-04-15"\n'
-        'version: 3\n'
-        'review_status: approved\n'
+        "version: 3\n"
+        "review_status: approved\n"
         'owner: "Platform Team"\n'
         'implementation_done_when: "all consumer-repos green"\n'
     )

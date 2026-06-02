@@ -12,6 +12,7 @@ adr_query returns:
 - open_questions if the query touches an unanswered area
 - confidence based on match strength
 """
+
 from __future__ import annotations
 
 import re
@@ -28,23 +29,74 @@ from iil_adrfw.domain import ADR, OpenQuestion, Status
 # Match german + english word characters of length >= 3
 _TOKEN_RE = re.compile(r"[a-zA-Z\u00c0-\u017f][a-zA-Z\u00c0-\u017f0-9_-]{2,}")
 # Common stopwords (DE + EN). Kept compact — full lists hurt recall without helping precision much.
-_STOPWORDS = frozenset({
-    "the", "a", "an", "and", "or", "but", "is", "are", "was", "were",
-    "for", "with", "from", "into", "of", "in", "on", "to", "by", "at",
-    "as", "this", "that", "these", "those", "be", "been", "being",
-    "der", "die", "das", "den", "dem", "des", "ein", "eine", "einen", "einem",
-    "und", "oder", "aber", "ist", "sind", "war", "waren", "fuer", "für",
-    "mit", "von", "in", "zu", "bei", "an", "auf", "im", "wird", "werden",
-    "siehe", "z.b", "etc",
-})
+_STOPWORDS = frozenset(
+    {
+        "the",
+        "a",
+        "an",
+        "and",
+        "or",
+        "but",
+        "is",
+        "are",
+        "was",
+        "were",
+        "for",
+        "with",
+        "from",
+        "into",
+        "of",
+        "in",
+        "on",
+        "to",
+        "by",
+        "at",
+        "as",
+        "this",
+        "that",
+        "these",
+        "those",
+        "be",
+        "been",
+        "being",
+        "der",
+        "die",
+        "das",
+        "den",
+        "dem",
+        "des",
+        "ein",
+        "eine",
+        "einen",
+        "einem",
+        "und",
+        "oder",
+        "aber",
+        "ist",
+        "sind",
+        "war",
+        "waren",
+        "fuer",
+        "für",
+        "mit",
+        "von",
+        "in",
+        "zu",
+        "bei",
+        "an",
+        "auf",
+        "im",
+        "wird",
+        "werden",
+        "siehe",
+        "z.b",
+        "etc",
+    }
+)
 
 
 def _tokenize(text: str) -> set[str]:
-    return {
-        m.group(0).lower()
-        for m in _TOKEN_RE.finditer(text or "")
-        if m.group(0).lower() not in _STOPWORDS
-    }
+    return {m.group(0).lower() for m in _TOKEN_RE.finditer(text or "") if m.group(0).lower() not in _STOPWORDS}
 
 
 # --- Graph ---

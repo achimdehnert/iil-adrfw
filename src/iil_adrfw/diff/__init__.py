@@ -10,6 +10,7 @@ Two snapshots of a constitution can differ in two ways:
 
 Both produce the same ConstitutionDiff structure with categorized changes.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -66,8 +67,7 @@ class ConstitutionDiff:
 
     @property
     def modified_count(self) -> int:
-        return sum(1 for c in self.changes
-                   if c.kind not in (ChangeKind.ADDED, ChangeKind.REMOVED))
+        return sum(1 for c in self.changes if c.kind not in (ChangeKind.ADDED, ChangeKind.REMOVED))
 
     def changes_for(self, adr_id: str) -> list[ADRChange]:
         return [c for c in self.changes if c.adr_id == adr_id]
@@ -129,21 +129,25 @@ def _diff_adr_pair(left: ADR, right: ADR) -> ADRChange | None:
     field_changes: list[FieldChange] = []
 
     if left.status != right.status:
-        field_changes.append(FieldChange(
-            field_path="status",
-            before=left.status.value,
-            after=right.status.value,
-        ))
+        field_changes.append(
+            FieldChange(
+                field_path="status",
+                before=left.status.value,
+                after=right.status.value,
+            )
+        )
 
     for fname in ("supersedes", "superseded_by", "consolidates"):
         l_val = getattr(left, fname)
         r_val = getattr(right, fname)
         if l_val != r_val:
-            field_changes.append(FieldChange(
-                field_path=fname,
-                before=list(l_val),
-                after=list(r_val),
-            ))
+            field_changes.append(
+                FieldChange(
+                    field_path=fname,
+                    before=list(l_val),
+                    after=list(r_val),
+                )
+            )
 
     left_rules = {r.rule_id: r for r in left.rules}
     right_rules = {r.rule_id: r for r in right.rules}
@@ -156,20 +160,22 @@ def _diff_adr_pair(left: ADR, right: ADR) -> ADRChange | None:
         if l_rule.severity != r_rule.severity or l_rule.title != r_rule.title:
             rules_changed_ids.append(rid)
     if rules_added or rules_removed or rules_changed_ids:
-        field_changes.append(FieldChange(
-            field_path="rules",
-            before={
-                "rule_ids": sorted(left_rules.keys()),
-                "count": len(left_rules),
-            },
-            after={
-                "rule_ids": sorted(right_rules.keys()),
-                "count": len(right_rules),
-                "added": sorted(rules_added),
-                "removed": sorted(rules_removed),
-                "modified": sorted(rules_changed_ids),
-            },
-        ))
+        field_changes.append(
+            FieldChange(
+                field_path="rules",
+                before={
+                    "rule_ids": sorted(left_rules.keys()),
+                    "count": len(left_rules),
+                },
+                after={
+                    "rule_ids": sorted(right_rules.keys()),
+                    "count": len(right_rules),
+                    "added": sorted(rules_added),
+                    "removed": sorted(rules_removed),
+                    "modified": sorted(rules_changed_ids),
+                },
+            )
+        )
 
     for fname in ("title", "rationale_summary", "implementation_status", "owner"):
         l_val = getattr(left, fname, None)
@@ -236,6 +242,7 @@ def diff_temporal(
     """Compare the same ADR set as it appeared at two world times.
     Always oriented from past to future."""
     import time
+
     start = time.monotonic()
     if left_time > right_time:
         left_time, right_time = right_time, left_time
@@ -253,18 +260,22 @@ def diff_temporal(
     for adr_id in all_ids:
         if adr_id in right_snap and adr_id not in left_snap:
             adr = right_snap[adr_id]
-            diff.changes.append(ADRChange(
-                adr_id=adr_id,
-                kind=ChangeKind.ADDED,
-                summary=f"{adr_id} added: {adr.title[:60]}",
-            ))
+            diff.changes.append(
+                ADRChange(
+                    adr_id=adr_id,
+                    kind=ChangeKind.ADDED,
+                    summary=f"{adr_id} added: {adr.title[:60]}",
+                )
+            )
         elif adr_id in left_snap and adr_id not in right_snap:
             adr = left_snap[adr_id]
-            diff.changes.append(ADRChange(
-                adr_id=adr_id,
-                kind=ChangeKind.REMOVED,
-                summary=f"{adr_id} removed: {adr.title[:60]}",
-            ))
+            diff.changes.append(
+                ADRChange(
+                    adr_id=adr_id,
+                    kind=ChangeKind.REMOVED,
+                    summary=f"{adr_id} removed: {adr.title[:60]}",
+                )
+            )
         else:
             change = _diff_adr_pair(left_snap[adr_id], right_snap[adr_id])
             if change is not None:
@@ -282,6 +293,7 @@ def diff_set(
 ) -> ConstitutionDiff:
     """Compare two ADR sets by id and field content."""
     import time
+
     start = time.monotonic()
 
     left_by_id = {a.id: a for a in left_adrs}
@@ -297,18 +309,22 @@ def diff_set(
     for adr_id in all_ids:
         if adr_id in right_by_id and adr_id not in left_by_id:
             adr = right_by_id[adr_id]
-            diff.changes.append(ADRChange(
-                adr_id=adr_id,
-                kind=ChangeKind.ADDED,
-                summary=f"{adr_id} only in {right_label}: {adr.title[:60]}",
-            ))
+            diff.changes.append(
+                ADRChange(
+                    adr_id=adr_id,
+                    kind=ChangeKind.ADDED,
+                    summary=f"{adr_id} only in {right_label}: {adr.title[:60]}",
+                )
+            )
         elif adr_id in left_by_id and adr_id not in right_by_id:
             adr = left_by_id[adr_id]
-            diff.changes.append(ADRChange(
-                adr_id=adr_id,
-                kind=ChangeKind.REMOVED,
-                summary=f"{adr_id} only in {left_label}: {adr.title[:60]}",
-            ))
+            diff.changes.append(
+                ADRChange(
+                    adr_id=adr_id,
+                    kind=ChangeKind.REMOVED,
+                    summary=f"{adr_id} only in {left_label}: {adr.title[:60]}",
+                )
+            )
         else:
             change = _diff_adr_pair(left_by_id[adr_id], right_by_id[adr_id])
             if change is not None:

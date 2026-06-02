@@ -1,4 +1,5 @@
 """Checker protocol and registry. Concrete checkers live in sibling modules."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,8 +11,7 @@ from iil_adrfw.domain import Rule, RuleViolation
 class Checker(Protocol):
     """A checker takes a rule and a file path, returns violations."""
 
-    def check(self, rule: Rule, file_path: Path, source: str) -> list[RuleViolation]:
-        ...
+    def check(self, rule: Rule, file_path: Path, source: str) -> list[RuleViolation]: ...
 
 
 _REGISTRY: dict[str, Checker] = {}

@@ -10,6 +10,7 @@ canonical case: tenant_id field type. Class-2 (LLM samples) and Class-3
 (aggregation patterns) are stubbed — they need a real LLM call and a richer
 codebase model respectively, which is out of scope for the skeleton.
 """
+
 from __future__ import annotations
 
 import re
@@ -37,8 +38,8 @@ from iil_adrfw.domain.cross_repo import (
 class ConsumerRepoLayout:
     """Where to find a consumer-repo on disk."""
 
-    name: str                # 'meiki-hub', 'bfagent', ...
-    root: Path               # local checkout root
+    name: str  # 'meiki-hub', 'bfagent', ...
+    root: Path  # local checkout root
     model_globs: tuple[str, ...] = ("**/models.py", "**/models/*.py", "**/models/**/*.py")
     sql_globs: tuple[str, ...] = ("**/db/*.sql", "**/migrations/*.sql")
 
@@ -148,14 +149,16 @@ def _scan_python_models(repo: ConsumerRepoLayout) -> list[RepoSample]:
             wrapper.visit(extractor)
             for line, field_type, class_name in extractor.findings:
                 snippet = source.splitlines()[line - 1] if line > 0 else ""
-                samples.append(RepoSample(
-                    repo=repo.name,
-                    file=str(py_file.relative_to(repo.root)),
-                    line_start=line,
-                    line_end=line,
-                    snippet=snippet.strip(),
-                    extracted_value=field_type,
-                ))
+                samples.append(
+                    RepoSample(
+                        repo=repo.name,
+                        file=str(py_file.relative_to(repo.root)),
+                        line_start=line,
+                        line_end=line,
+                        snippet=snippet.strip(),
+                        extracted_value=field_type,
+                    )
+                )
     return samples
 
 
@@ -170,14 +173,16 @@ def _scan_sql_schemas(repo: ConsumerRepoLayout) -> list[RepoSample]:
                 continue
             for line, type_name in _sql_tenant_id_type(text):
                 snippet = text.splitlines()[line - 1] if line > 0 else ""
-                samples.append(RepoSample(
-                    repo=repo.name,
-                    file=str(sql_file.relative_to(repo.root)),
-                    line_start=line,
-                    line_end=line,
-                    snippet=snippet.strip(),
-                    extracted_value=type_name,
-                ))
+                samples.append(
+                    RepoSample(
+                        repo=repo.name,
+                        file=str(sql_file.relative_to(repo.root)),
+                        line_start=line,
+                        line_end=line,
+                        snippet=snippet.strip(),
+                        extracted_value=type_name,
+                    )
+                )
     return samples
 
 
@@ -287,10 +292,7 @@ def validate_cross_repo(
     if adr_claim_family != consensus_family:
         # Find samples whose family differs from the ADR claim — these are
         # the most damning evidence
-        conflicting_samples = tuple(
-            s for s in all_samples
-            if _to_family(s.extracted_value) != adr_claim_family
-        )
+        conflicting_samples = tuple(s for s in all_samples if _to_family(s.extracted_value) != adr_claim_family)
         affected_repos = tuple(sorted({s.repo for s in conflicting_samples}))
 
         # Confidence: PROVEN if 100% of consumer-repos disagree with ADR,
@@ -304,22 +306,24 @@ def validate_cross_repo(
 
         suggestion = _build_suggestion(adr_claim_family, consensus_family, consensus_share)
 
-        conflicts.append(CrossRepoConflict(
-            adr_id=adr.id,
-            rule_id=None,  # ADR-level
-            conflict_class=ConflictClass.DIRECT_SCHEMA,
-            confidence=confidence,
-            claim=f"tenant_id field family = '{adr_claim_family}'",
-            reality=(
-                f"{consensus_count}/{sum(family_counter.values())} samples in consumer-repos "
-                f"use family '{consensus_family}' ({consensus_share:.0%}); "
-                f"{', '.join(f'{f}: {n}' for f, n in family_counter.items())}"
-            ),
-            evidence=conflicting_samples[:10],  # cap evidence for readability
-            affected_repos=affected_repos,
-            suggestion=suggestion,
-            blocks_publish=(confidence in (ConflictConfidence.PROVEN, ConflictConfidence.HIGH)),
-        ))
+        conflicts.append(
+            CrossRepoConflict(
+                adr_id=adr.id,
+                rule_id=None,  # ADR-level
+                conflict_class=ConflictClass.DIRECT_SCHEMA,
+                confidence=confidence,
+                claim=f"tenant_id field family = '{adr_claim_family}'",
+                reality=(
+                    f"{consensus_count}/{sum(family_counter.values())} samples in consumer-repos "
+                    f"use family '{consensus_family}' ({consensus_share:.0%}); "
+                    f"{', '.join(f'{f}: {n}' for f, n in family_counter.items())}"
+                ),
+                evidence=conflicting_samples[:10],  # cap evidence for readability
+                affected_repos=affected_repos,
+                suggestion=suggestion,
+                blocks_publish=(confidence in (ConflictConfidence.PROVEN, ConflictConfidence.HIGH)),
+            )
+        )
 
     runtime_ms = int((time.monotonic() - start) * 1000)
     return CrossRepoReport(
