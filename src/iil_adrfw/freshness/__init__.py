@@ -11,6 +11,7 @@ Architecture:
 
 No LLM calls in Phase 1+2. Deterministic and fast.
 """
+
 from __future__ import annotations
 
 import re
@@ -24,16 +25,18 @@ from typing import Any
 @dataclass(frozen=True)
 class Claim:
     """A factual assertion extracted from an ADR body."""
+
     adr_id: str
     claim_type: str  # 'version', 'port', 'image', 'tool'
-    subject: str     # e.g. 'PostgreSQL', 'Redis', 'python'
-    value: str       # e.g. '14', '8085', '3.12-slim'
+    subject: str  # e.g. 'PostgreSQL', 'Redis', 'python'
+    value: str  # e.g. '14', '8085', '3.12-slim'
     source_line: str  # the line it was extracted from (for debugging)
 
 
 @dataclass(frozen=True)
 class FreshnessFinding:
     """A claim that doesn't match reality."""
+
     adr_id: str
     claim: Claim
     actual_value: str
@@ -51,6 +54,7 @@ class FreshnessFinding:
 @dataclass
 class FreshnessReport:
     """Full output of the freshness check."""
+
     total_claims: int = 0
     stale_claims: list[FreshnessFinding] = field(default_factory=list)
     verified_claims: int = 0
@@ -68,27 +72,21 @@ _VERSION_PATTERNS = [
         r"\b(PostgreSQL|Postgres|Redis|Python|Django|Celery|Gunicorn|Nginx|Node|npm|"
         r"Docker|Compose|FastAPI|Flask|React|Vue|Angular|Svelte|"
         r"Ubuntu|Debian|Alpine)\s+v?(\d+(?:\.\d+){0,2})\b",
-        re.IGNORECASE
+        re.IGNORECASE,
     ),
     # "pg16", "py3.12"
-    re.compile(
-        r"\b(pg|py|node)(\d+(?:\.\d+){0,2})\b",
-        re.IGNORECASE
-    ),
+    re.compile(r"\b(pg|py|node)(\d+(?:\.\d+){0,2})\b", re.IGNORECASE),
 ]
 
 # Docker image patterns: "python:3.12-slim", "postgres:16", "redis:7-alpine"
 _IMAGE_PATTERN = re.compile(
     r"\b(python|postgres|redis|node|nginx|alpine|ubuntu|debian|pgvector/pgvector)"
     r":(\d+(?:\.\d+){0,2}(?:-[a-z0-9]+)?)\b",
-    re.IGNORECASE
+    re.IGNORECASE,
 )
 
 # Port patterns: "port 8085", ":8085", "8000/tcp"
-_PORT_PATTERN = re.compile(
-    r"(?:port\s+|:)(\d{4,5})(?:/tcp|/udp)?\b|\b(\d{4,5})(?:/tcp|/udp)\b",
-    re.IGNORECASE
-)
+_PORT_PATTERN = re.compile(r"(?:port\s+|:)(\d{4,5})(?:/tcp|/udp)?\b|\b(\d{4,5})(?:/tcp|/udp)\b", re.IGNORECASE)
 
 # Abbreviation normalization
 _SUBJECT_NORMALIZE = {
@@ -132,13 +130,15 @@ def extract_claims(adr_id: str, body: str) -> list[Claim]:
                 key = ("version", subject, value)
                 if key not in seen:
                     seen.add(key)
-                    claims.append(Claim(
-                        adr_id=adr_id,
-                        claim_type="version",
-                        subject=subject,
-                        value=value,
-                        source_line=stripped[:120],
-                    ))
+                    claims.append(
+                        Claim(
+                            adr_id=adr_id,
+                            claim_type="version",
+                            subject=subject,
+                            value=value,
+                            source_line=stripped[:120],
+                        )
+                    )
 
         # Docker image claims
         for m in _IMAGE_PATTERN.finditer(line):
@@ -147,13 +147,15 @@ def extract_claims(adr_id: str, body: str) -> list[Claim]:
             key = ("image", subject, value)
             if key not in seen:
                 seen.add(key)
-                claims.append(Claim(
-                    adr_id=adr_id,
-                    claim_type="image",
-                    subject=subject,
-                    value=value,
-                    source_line=stripped[:120],
-                ))
+                claims.append(
+                    Claim(
+                        adr_id=adr_id,
+                        claim_type="image",
+                        subject=subject,
+                        value=value,
+                        source_line=stripped[:120],
+                    )
+                )
 
         # Port claims
         for m in _PORT_PATTERN.finditer(line):
@@ -161,13 +163,15 @@ def extract_claims(adr_id: str, body: str) -> list[Claim]:
             key = ("port", "service", port)
             if key not in seen:
                 seen.add(key)
-                claims.append(Claim(
-                    adr_id=adr_id,
-                    claim_type="port",
-                    subject="service",
-                    value=port,
-                    source_line=stripped[:120],
-                ))
+                claims.append(
+                    Claim(
+                        adr_id=adr_id,
+                        claim_type="port",
+                        subject="service",
+                        value=port,
+                        source_line=stripped[:120],
+                    )
+                )
 
     return claims
 
@@ -247,6 +251,7 @@ def check_freshness(
     Returns a FreshnessReport with stale_claims for each mismatch.
     """
     import time
+
     start = time.monotonic()
 
     if compose_files is None:
@@ -281,25 +286,29 @@ def check_freshness(
                 claim_major = claim.value.split(".")[0]
                 actual_major = actual.split(".")[0]
                 severity = "warning" if claim_major != actual_major else "info"
-                report.stale_claims.append(FreshnessFinding(
-                    adr_id=claim.adr_id,
-                    claim=claim,
-                    actual_value=actual,
-                    source_file=str(repo_root),
-                    severity=severity,
-                ))
+                report.stale_claims.append(
+                    FreshnessFinding(
+                        adr_id=claim.adr_id,
+                        claim=claim,
+                        actual_value=actual,
+                        source_file=str(repo_root),
+                        severity=severity,
+                    )
+                )
             else:
                 report.verified_claims += 1
         elif claim.claim_type == "port":
             if reality_ports:
                 if claim.value not in reality_ports:
-                    report.stale_claims.append(FreshnessFinding(
-                        adr_id=claim.adr_id,
-                        claim=claim,
-                        actual_value=f"ports found: {sorted(reality_ports)}",
-                        source_file=str(repo_root),
-                        severity="info",
-                    ))
+                    report.stale_claims.append(
+                        FreshnessFinding(
+                            adr_id=claim.adr_id,
+                            claim=claim,
+                            actual_value=f"ports found: {sorted(reality_ports)}",
+                            source_file=str(repo_root),
+                            severity="info",
+                        )
+                    )
                 else:
                     report.verified_claims += 1
             else:

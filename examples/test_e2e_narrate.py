@@ -1,7 +1,8 @@
 """Tests for adr_narrate (4 audiences, 3 selection modes, fixed-section structure)."""
-import os
-import shutil
-from pathlib import Path
+
+import os  # noqa: E402
+import shutil  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 BASE = Path(__file__).resolve().parent
 ADRS_DIR = BASE / "_test_adrs_narrate"
@@ -20,10 +21,9 @@ shutil.copy(BASE / "ADR-188-unified-vector-store.rules.yaml", ADRS_DIR)
 os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
 os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
 
-from iil_adrfw.persistence import load_adrs
-from iil_adrfw.narrate import compose_narrative, Audience, select_adrs
-from iil_adrfw.server import _do_narrate, NarrateRequest
-
+from iil_adrfw.narrate import Audience, compose_narrative, select_adrs  # noqa: E402
+from iil_adrfw.persistence import load_adrs  # noqa: E402
+from iil_adrfw.server import NarrateRequest, _do_narrate  # noqa: E402
 
 # Common fixed-section structure expected for every narrative
 EXPECTED_SECTIONS = (
@@ -49,8 +49,7 @@ def test_all_audiences_emit_same_section_structure():
         narrative = compose_narrative(adrs, aud, scope_label="full constitution")
         section_headings = tuple(s.heading for s in narrative.sections)
         print(f"  {aud.value:10}: {section_headings}")
-        assert section_headings == EXPECTED_SECTIONS, \
-            f"{aud.value} produced wrong section list: {section_headings}"
+        assert section_headings == EXPECTED_SECTIONS, f"{aud.value} produced wrong section list: {section_headings}"
     print("  PASS: all 4 audiences have the same 5 sections in the same order\n")
 
 
@@ -86,8 +85,7 @@ def test_empty_sections_show_none_marker():
     sup_section = next(s for s in narrative.sections if s.heading == "Supersession chains")
     print(f"  ADR-099 alone, supersession section body: {sup_section.body!r}")
     # ADR-099 has no supersedes/superseded_by → body should be '(none)'
-    assert sup_section.body == "(none)", \
-        f"expected '(none)' for empty supersession section, got {sup_section.body!r}"
+    assert sup_section.body == "(none)", f"expected '(none)' for empty supersession section, got {sup_section.body!r}"
     print("  PASS: empty sections marked with '(none)'\n")
 
 
@@ -161,18 +159,19 @@ def test_mcp_tool_each_audience():
     print("TEST: MCP tool — produce response for each audience")
     print("=" * 70)
     for aud in Audience:
-        resp = _do_narrate(NarrateRequest(
-            audience=aud.value,
-            id_set=["ADR-099", "ADR-188"],
-            scope_label="rag-mcp scope",
-        ))
+        resp = _do_narrate(
+            NarrateRequest(
+                audience=aud.value,
+                id_set=["ADR-099", "ADR-188"],
+                scope_label="rag-mcp scope",
+            )
+        )
         assert resp.audience == aud.value
         assert resp.markdown.startswith("# ")
         assert len(resp.sections) == 5
         section_headings = tuple(s.heading for s in resp.sections)
         assert section_headings == EXPECTED_SECTIONS
-        print(f"  {aud.value:10}: title='{resp.title[:60]}', "
-              f"sections={len(resp.sections)}, md={len(resp.markdown)}b")
+        print(f"  {aud.value:10}: title='{resp.title[:60]}', sections={len(resp.sections)}, md={len(resp.markdown)}b")
     print("  PASS: all 4 audiences via MCP tool\n")
 
 
@@ -205,7 +204,7 @@ def test_auditor_compliance_trail_has_dates_and_deciders():
     adrs = _all_adrs()
     narrative = compose_narrative(adrs, Audience.AUDITOR)
     ct_section = next(s for s in narrative.sections if s.heading == "Compliance trail")
-    print(f"  Compliance trail body (excerpt):")
+    print("  Compliance trail body (excerpt):")
     for line in ct_section.body.splitlines()[:12]:
         print(f"    {line}")
     # Must contain at least one ADR id, the keyword 'Decision date', and 'Deciders'

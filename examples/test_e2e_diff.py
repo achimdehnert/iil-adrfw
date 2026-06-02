@@ -1,8 +1,9 @@
 """Tests for adr_diff (temporal and set modes)."""
-import os
-import shutil
-from datetime import datetime, timezone, timedelta
-from pathlib import Path
+
+import os  # noqa: E402
+import shutil  # noqa: E402
+from datetime import UTC, datetime  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 BASE = Path(__file__).resolve().parent
 ADRS_DIR = BASE / "_test_adrs_diff"
@@ -24,9 +25,9 @@ shutil.copy(BASE / "ADR-188-unified-vector-store.rules.yaml", ADRS_DIR)
 os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
 os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
 
-from iil_adrfw.persistence import load_adrs
-from iil_adrfw.diff import diff_temporal, diff_set, ChangeKind, DiffMode
-from iil_adrfw.server import _do_diff, DiffRequest
+from iil_adrfw.diff import ChangeKind, diff_set, diff_temporal  # noqa: E402
+from iil_adrfw.persistence import load_adrs  # noqa: E402
+from iil_adrfw.server import DiffRequest, _do_diff  # noqa: E402
 
 
 def test_temporal_pre_decision_excludes_adr():
@@ -35,12 +36,12 @@ def test_temporal_pre_decision_excludes_adr():
     print("TEST: temporal — querying before all decision_dates → empty left snap")
     print("=" * 70)
     adrs = load_adrs(ADRS_DIR, SCHEMAS_DIR)
-    very_old = datetime(2020, 1, 1, tzinfo=timezone.utc)
-    today = datetime.now(timezone.utc)
+    very_old = datetime(2020, 1, 1, tzinfo=UTC)
+    today = datetime.now(UTC)
     diff = diff_temporal(adrs, very_old, today)
     print(f"  Mode: {diff.mode.value}")
     print(f"  added: {diff.added_count}, removed: {diff.removed_count}, modified: {diff.modified_count}")
-    print(f"  Changes:")
+    print("  Changes:")
     for c in diff.changes:
         print(f"    [{c.kind.value:14}] {c.summary}")
     assert diff.added_count == len(adrs), f"all {len(adrs)} ADRs should be ADDED relative to 2020"
@@ -60,10 +61,11 @@ def test_temporal_amendments_visible():
     print(f"  ADR-188 has {len(adr_188.amendments)} amendment(s) in source")
 
     # Two timestamps: just before the v1.1 amendment, and just after
-    early = datetime(2026, 5, 7, 23, 0, tzinfo=timezone.utc)
-    late = datetime(2026, 5, 9, 0, 0, tzinfo=timezone.utc)
+    early = datetime(2026, 5, 7, 23, 0, tzinfo=UTC)
+    late = datetime(2026, 5, 9, 0, 0, tzinfo=UTC)
 
     from iil_adrfw.diff import _adr_effective_at
+
     early_snap = _adr_effective_at(adr_188, early)
     late_snap = _adr_effective_at(adr_188, late)
 
@@ -154,13 +156,15 @@ def test_mcp_tool_temporal():
     print("=" * 70)
     print("TEST: MCP tool — temporal mode end-to-end")
     print("=" * 70)
-    very_old = datetime(2020, 1, 1, tzinfo=timezone.utc)
-    today = datetime.now(timezone.utc)
-    resp = _do_diff(DiffRequest(
-        mode="temporal",
-        left_time=very_old,
-        right_time=today,
-    ))
+    very_old = datetime(2020, 1, 1, tzinfo=UTC)
+    today = datetime.now(UTC)
+    resp = _do_diff(
+        DiffRequest(
+            mode="temporal",
+            left_time=very_old,
+            right_time=today,
+        )
+    )
     print(f"  Mode: {resp.mode}")
     print(f"  Added: {resp.added_count}, Removed: {resp.removed_count}, Modified: {resp.modified_count}")
     print(f"  Runtime: {resp.runtime_ms}ms")
@@ -180,12 +184,14 @@ def test_mcp_tool_set():
     shutil.copy(BASE / "ADR-099-multi-tenancy.md", ADRS_LEFT)
     shutil.copy(BASE / "ADR-099-multi-tenancy.rules.yaml", ADRS_LEFT)
 
-    resp = _do_diff(DiffRequest(
-        mode="set",
-        right_dir=str(ADRS_LEFT),
-        left_label="full",
-        right_label="subset",
-    ))
+    resp = _do_diff(
+        DiffRequest(
+            mode="set",
+            right_dir=str(ADRS_LEFT),
+            left_label="full",
+            right_label="subset",
+        )
+    )
     print(f"  Mode: {resp.mode}")
     print(f"  Added: {resp.added_count}, Removed: {resp.removed_count}, Modified: {resp.modified_count}")
     for c in resp.changes:
@@ -206,14 +212,14 @@ def test_mcp_tool_validation_errors():
         raise AssertionError("expected ValueError for missing times")
     except ValueError as e:
         assert "left_time" in str(e) or "right_time" in str(e)
-        print(f"  PASS: temporal w/o times raises ValueError")
+        print("  PASS: temporal w/o times raises ValueError")
 
     try:
         _do_diff(DiffRequest(mode="set"))
         raise AssertionError("expected ValueError for missing right_dir")
     except ValueError as e:
         assert "right_dir" in str(e)
-        print(f"  PASS: set w/o right_dir raises ValueError")
+        print("  PASS: set w/o right_dir raises ValueError")
     print()
 
 

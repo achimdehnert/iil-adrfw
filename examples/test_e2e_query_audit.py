@@ -1,8 +1,9 @@
 """E2E tests for adr_query and adr_audit."""
-import os
-import shutil
-from datetime import datetime, timezone
-from pathlib import Path
+
+import os  # noqa: E402
+import shutil  # noqa: E402
+from datetime import UTC, datetime  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 BASE = Path(__file__).resolve().parent
 ADRS_DIR = BASE / "_test_adrs_qa"
@@ -24,11 +25,12 @@ os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
 os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
 os.environ["IIL_ADRFW_REPO_ROOT"] = str(REPO_ROOT)
 
-from iil_adrfw.server import (
-    _do_query, QueryRequest,
-    _do_audit, AuditRequest,
+from iil_adrfw.server import (  # noqa: E402
+    AuditRequest,
+    QueryRequest,
+    _do_audit,
+    _do_query,
 )
-
 
 # ============================================================
 # adr_query
@@ -171,13 +173,9 @@ rationale_summary: "Test fixture for dangling refs"
             print(f"    [{f.severity:8}] {f.auditor}: {f.description[:140]}")
         # Expect at least 2 findings: dangling supersedes (ADR-9999) and dangling depends_on (ADR-8888)
         dangling_supersedes = [
-            f for f in resp.findings
-            if f.auditor == "supersession_hygiene" and "ADR-9999" in f.description
+            f for f in resp.findings if f.auditor == "supersession_hygiene" and "ADR-9999" in f.description
         ]
-        dangling_dep = [
-            f for f in resp.findings
-            if f.auditor == "dependency_health" and "ADR-8888" in f.description
-        ]
+        dangling_dep = [f for f in resp.findings if f.auditor == "dependency_health" and "ADR-8888" in f.description]
         assert dangling_supersedes, "Should find dangling supersedes ADR-9999"
         assert dangling_dep, "Should find dangling depends_on ADR-8888"
     finally:
@@ -207,7 +205,7 @@ def test_audit_staleness_with_explicit_date():
     print("TEST: adr_audit — staleness check with future as_of")
     print("=" * 70)
     # Force the audit to see itself in the future, past staleness threshold
-    far_future = datetime(2030, 1, 1, tzinfo=timezone.utc)
+    far_future = datetime(2030, 1, 1, tzinfo=UTC)
     resp = _do_audit(AuditRequest(auditors=["staleness"], as_of=far_future))
     print(f"  Findings (in 2030): {len(resp.findings)}")
     for f in resp.findings:
@@ -230,8 +228,10 @@ def test_audit_health_snapshot_quantified():
     print(f"  Supersession hygiene:    {h.supersession_hygiene}")
     # Score should be in [0, 1]
     for name, v in [
-        ("score", h.score), ("consistency", h.internal_consistency),
-        ("coverage", h.coverage), ("freshness", h.freshness),
+        ("score", h.score),
+        ("consistency", h.internal_consistency),
+        ("coverage", h.coverage),
+        ("freshness", h.freshness),
         ("supersession_hygiene", h.supersession_hygiene),
     ]:
         assert 0.0 <= v <= 1.0, f"{name}={v} out of [0,1]"

@@ -3,6 +3,7 @@
 The general PythonASTChecker class consumes a structured spec. For the skeleton
 we ship one well-tested checker — tenant_id_bigint — and the structure to add more.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -85,12 +86,14 @@ class _TenantIdFieldVisitor(cst.CSTVisitor):
         except KeyError:
             line_start = line_end = 0
 
-        self.findings.append({
-            "field_name": field_name,
-            "class_name": cls.name.value,
-            "line_start": line_start,
-            "line_end": line_end,
-        })
+        self.findings.append(
+            {
+                "field_name": field_name,
+                "class_name": cls.name.value,
+                "line_start": line_start,
+                "line_end": line_end,
+            }
+        )
         return False
 
     @staticmethod
@@ -107,9 +110,7 @@ class _TenantIdFieldVisitor(cst.CSTVisitor):
         return None
 
 
-def check_tenant_id_bigint(
-    rule: Rule, file_path: Path, source: str
-) -> list[RuleViolation]:
+def check_tenant_id_bigint(rule: Rule, file_path: Path, source: str) -> list[RuleViolation]:
     """Check that tenant_id is BigIntegerField in Django models."""
     try:
         module = cst.parse_module(source)

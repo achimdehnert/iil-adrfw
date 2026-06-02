@@ -6,9 +6,10 @@ Reconstructs the v1.1 scenario:
 - Cross-repo validation should detect the conflict with PROVEN confidence
   and recommend AMENDING the ADR (which is what happened in reality on 2026-05-08)
 """
-import os
-import shutil
-from pathlib import Path
+
+import os  # noqa: E402
+import shutil  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 BASE = Path(__file__).resolve().parent
 ADRS_DIR = BASE / "_test_adrs_xrepo"
@@ -34,17 +35,16 @@ os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
 os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
 os.environ["IIL_ADRFW_REPO_ROOT"] = str(WORKSPACE)
 
-from iil_adrfw.server import (
-    _do_validate_cross_repo,
-    ValidateCrossRepoRequest,
+from iil_adrfw.server import (  # noqa: E402
     ConsumerRepoSpec,
+    ValidateCrossRepoRequest,
+    _do_validate_cross_repo,
 )
-
 
 CONSUMER_REPOS = [
     ConsumerRepoSpec(name="meiki-hub", root=str(WORKSPACE / "meiki-hub")),
-    ConsumerRepoSpec(name="bfagent",   root=str(WORKSPACE / "bfagent")),
-    ConsumerRepoSpec(name="mcp-hub",   root=str(WORKSPACE / "mcp-hub")),
+    ConsumerRepoSpec(name="bfagent", root=str(WORKSPACE / "bfagent")),
+    ConsumerRepoSpec(name="mcp-hub", root=str(WORKSPACE / "mcp-hub")),
 ]
 
 
@@ -83,15 +83,14 @@ def test_v10_hypothetical_caught_by_validator():
             for s in c.evidence_preview:
                 print(f"      [{s['repo']}] {s['file']}:{s['line']}  ({s['extracted_value']})")
                 print(f"        > {s['snippet']}")
-            print(f"    Suggestion:")
+            print("    Suggestion:")
             for line in c.suggestion.split("\n"):
                 print(f"      {line}")
 
     assert resp.has_blocking_conflicts, "v1.0 BIGINT claim MUST be flagged as blocking"
     assert resp.class1_count == 1, "should produce exactly one Class-1 conflict"
     conflict = resp.conflicts[0]
-    assert conflict.confidence in ("proven", "high"), \
-        f"confidence should be high or proven, got {conflict.confidence}"
+    assert conflict.confidence in ("proven", "high"), f"confidence should be high or proven, got {conflict.confidence}"
     assert "uuid" in conflict.reality.lower()
     assert "bigint" in conflict.claim.lower()
     print("\nPASS: v1.0 hypothetical correctly flagged BEFORE it could be accepted\n")
@@ -113,8 +112,7 @@ def test_v11_correct_no_conflicts():
         print(f"  - {c.conflict_class} ({c.confidence}): {c.claim}")
     print(f"  Runtime: {resp.runtime_ms}ms")
 
-    assert not resp.has_blocking_conflicts, \
-        f"v1.1 should not have blocking conflicts, but got {len(resp.conflicts)}"
+    assert not resp.has_blocking_conflicts, f"v1.1 should not have blocking conflicts, but got {len(resp.conflicts)}"
     print("\nPASS: v1.1 (corrected) ADR validates cleanly against consumer-repos\n")
 
 
@@ -125,7 +123,8 @@ def test_unreachable_repo_handled():
     print("=" * 70)
     req = ValidateCrossRepoRequest(
         adr_id="ADR-9088",
-        consumer_repos=CONSUMER_REPOS + [
+        consumer_repos=CONSUMER_REPOS
+        + [
             ConsumerRepoSpec(name="nonexistent-repo", root=str(WORKSPACE / "does-not-exist")),
         ],
     )

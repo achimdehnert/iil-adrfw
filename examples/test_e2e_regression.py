@@ -9,10 +9,10 @@ Bug references trace back to the adr-doctor review:
 - Bug #4: dangling supersedes target (cross-repo or typo)
 - Bug #5: self-reference in supersedes (revision marker, not real supersession)
 """
-import os
-import shutil
-from datetime import datetime, timezone
-from pathlib import Path
+
+import os  # noqa: E402
+import shutil  # noqa: E402
+from pathlib import Path  # noqa: E402
 
 BASE = Path(__file__).resolve().parent
 ADRS_DIR = BASE / "_test_adrs_regression"
@@ -118,9 +118,9 @@ os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
 os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
 
 
-from iil_adrfw.persistence import load_adrs
-from iil_adrfw.audit import run_audit
-from iil_adrfw.graph import ConstitutionGraph
+from iil_adrfw.audit import run_audit  # noqa: E402
+from iil_adrfw.graph import ConstitutionGraph  # noqa: E402
+from iil_adrfw.persistence import load_adrs  # noqa: E402
 
 
 def test_bug2_legacy_hyphens_load():
@@ -135,8 +135,9 @@ def test_bug2_legacy_hyphens_load():
     print(f"  ADR-410 loaded:       {adr.title}")
     print(f"  deciders:             {adr.deciders}")
     print(f"  superseded_by:        {adr.superseded_by}")
-    assert adr.deciders == ("Achim Dehnert",), \
+    assert adr.deciders == ("Achim Dehnert",), (
         f"decision-makers should normalize to deciders=['Achim Dehnert'], got {adr.deciders}"
+    )
     assert adr.superseded_by == (), "superseded-by should normalize to empty tuple"
     print("\nPASS: legacy hyphenated fields normalized correctly\n")
 
@@ -151,8 +152,9 @@ def test_bug3_freetext_supersedes():
     assert "ADR-411" in by_id, "freetext-supersedes ADR did not load"
     adr = by_id["ADR-411"]
     print(f"  ADR-411 supersedes:   {adr.supersedes}")
-    assert adr.supersedes == ("ADR-410",), \
+    assert adr.supersedes == ("ADR-410",), (
         f"freetext 'ADR-410 (Legacy ...)' should extract to ('ADR-410',), got {adr.supersedes}"
+    )
     print("\nPASS: freetext string supersedes correctly extracted\n")
 
 
@@ -165,19 +167,14 @@ def test_bug4_dangling_target_warning_not_error():
     graph = ConstitutionGraph.build(adrs)
     report = run_audit(graph, auditors=["supersession_hygiene"])
 
-    dangling_findings = [
-        f for f in report.findings
-        if "ADR-420" in f.affected_adrs and "ADR-9999" in f.description
-    ]
+    dangling_findings = [f for f in report.findings if "ADR-420" in f.affected_adrs and "ADR-9999" in f.description]
     print(f"  Dangling findings for ADR-420: {len(dangling_findings)}")
     for f in dangling_findings:
         print(f"    [{f.severity.value}] {f.description[:110]}")
     assert dangling_findings, "dangling supersedes should produce a finding"
     severities = {f.severity.value for f in dangling_findings}
-    assert "warning" in severities, \
-        f"dangling supersedes should be WARNING, got severities {severities}"
-    assert "error" not in severities, \
-        "dangling should NOT be ERROR — target may live in another repo"
+    assert "warning" in severities, f"dangling supersedes should be WARNING, got severities {severities}"
+    assert "error" not in severities, "dangling should NOT be ERROR — target may live in another repo"
     print("\nPASS: dangling supersedes correctly flagged as warning\n")
 
 
@@ -191,8 +188,7 @@ def test_bug5_self_reference_detected():
     report = run_audit(graph, auditors=["supersession_hygiene"])
 
     self_ref_findings = [
-        f for f in report.findings
-        if "ADR-430" in f.affected_adrs and "self-reference" in f.description.lower()
+        f for f in report.findings if "ADR-430" in f.affected_adrs and "self-reference" in f.description.lower()
     ]
     print(f"  Self-reference findings for ADR-430: {len(self_ref_findings)}")
     for f in self_ref_findings:
@@ -200,11 +196,13 @@ def test_bug5_self_reference_detected():
         if f.proposed_resolution:
             print(f"       resolution: {f.proposed_resolution[:100]}")
     assert self_ref_findings, "self-reference must be detected"
-    assert all(f.severity.value == "warning" for f in self_ref_findings), \
+    assert all(f.severity.value == "warning" for f in self_ref_findings), (
         "self-reference is WARNING (not ERROR — could be revision marker)"
+    )
     # Resolution should mention 'amended' as the right field
-    assert any("amended" in (f.proposed_resolution or "") for f in self_ref_findings), \
+    assert any("amended" in (f.proposed_resolution or "") for f in self_ref_findings), (
         "resolution should suggest using 'amended' field instead"
+    )
     print("\nPASS: self-reference detected with appropriate severity and resolution\n")
 
 
@@ -225,10 +223,7 @@ def test_real_world_combined_constitution():
 
     # ADR-411 supersedes ADR-410 — that creates a back-ref expectation
     # ADR-410 is loaded, so we expect a 'missing back-reference' finding
-    missing_backref = [
-        f for f in report.findings
-        if "ADR-410" in f.affected_adrs and "ADR-411" in f.affected_adrs
-    ]
+    missing_backref = [f for f in report.findings if "ADR-410" in f.affected_adrs and "ADR-411" in f.affected_adrs]
     print(f"\n  Missing back-ref ADR-411→ADR-410: {len(missing_backref)} finding(s)")
     assert missing_backref, "should find missing back-ref from freetext supersedes"
     # This is the killer demonstration: even with freetext supersedes, the

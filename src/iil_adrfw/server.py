@@ -6,6 +6,7 @@ Two tools implemented for the skeleton:
 
 Six more (query, diff, audit, propose, shadow_pr, narrate) will follow.
 """
+
 import os
 from datetime import UTC, datetime
 from pathlib import Path
@@ -23,6 +24,7 @@ mcp = FastMCP("iil-adrfw")
 
 # --- Configuration via env vars ---
 
+
 def _adrs_dir() -> Path:
     return Path(os.environ.get("IIL_ADRFW_ADRS_DIR", "./adrs")).resolve()
 
@@ -39,6 +41,7 @@ def _repo_root() -> Path:
 # --- Caching ---
 # Skeleton: load on every call. Production: hash adrs_dir mtime, cache.
 
+
 def _load_constitution() -> list[ADR]:
     return load_adrs(_adrs_dir(), _schemas_dir(), validate=True)
 
@@ -47,9 +50,7 @@ def _load_constitution() -> list[ADR]:
 
 
 class CheckRequest(BaseModel):
-    paths: list[str] = Field(
-        description="Files or directories (relative to repo root or absolute) to check"
-    )
+    paths: list[str] = Field(description="Files or directories (relative to repo root or absolute) to check")
     rule_ids: list[str] | None = Field(
         default=None,
         description="Filter to specific rule IDs (e.g. ['ADR-099/tenant-id-bigint']). None = all applicable.",
@@ -288,10 +289,7 @@ def _do_validate_cross_repo(req: ValidateCrossRepoRequest) -> ValidateCrossRepoR
     if adr is None:
         raise ValueError(f"ADR {req.adr_id!r} not found in constitution")
 
-    layouts = [
-        ConsumerRepoLayout(name=r.name, root=Path(r.root))
-        for r in req.consumer_repos
-    ]
+    layouts = [ConsumerRepoLayout(name=r.name, root=Path(r.root)) for r in req.consumer_repos]
 
     report = validate_cross_repo(adr, layouts)
 
@@ -405,10 +403,7 @@ def _do_query(req: QueryRequest) -> QueryResponse:
             )
             for c in result.citations
         ],
-        open_questions=[
-            {"adr_id": adr_id, "q_id": q_id, "question": q}
-            for adr_id, q_id, q in result.open_questions
-        ],
+        open_questions=[{"adr_id": adr_id, "q_id": q_id, "question": q} for adr_id, q_id, q in result.open_questions],
         confidence=result.confidence,
         routing=result.routing,
     )
@@ -597,10 +592,7 @@ def _do_propose(req: ProposeRequest) -> ProposeResponse:
     adrs = _load_constitution()
     graph = ConstitutionGraph.build(adrs)
 
-    drivers = (
-        [d.model_dump() for d in req.decision_drivers]
-        if req.decision_drivers else None
-    )
+    drivers = [d.model_dump() for d in req.decision_drivers] if req.decision_drivers else None
 
     proposal_req = ProposalRequest(
         title=req.title,
@@ -641,9 +633,7 @@ def _do_propose(req: ProposeRequest) -> ProposeResponse:
             )
             for m in result.closes_open_questions
         ],
-        cross_repo_blockers=[
-            CrossRepoBlockerOut(**b) for b in result.cross_repo_blockers
-        ],
+        cross_repo_blockers=[CrossRepoBlockerOut(**b) for b in result.cross_repo_blockers],
         blocks_publish=result.blocks_publish,
         runtime_ms=result.runtime_ms,
     )
@@ -730,13 +720,15 @@ def _do_diff(req: DiffRequest) -> DiffResponse:
         if not req.right_dir:
             raise ValueError("set mode requires right_dir")
         from iil_adrfw.persistence import load_adrs
+
         right_path = Path(req.right_dir)
         if not right_path.is_dir():
             raise ValueError(f"right_dir does not exist: {right_path}")
         left = _load_constitution()
         right = load_adrs(right_path, _schemas_dir(), validate=True)
         result = diff_set(
-            left, right,
+            left,
+            right,
             left_label=req.left_label,
             right_label=req.right_label,
         )
@@ -756,8 +748,7 @@ def _do_diff(req: DiffRequest) -> DiffResponse:
                 kind=c.kind.value,
                 summary=c.summary,
                 field_changes=[
-                    FieldChangeOut(field_path=fc.field_path, before=fc.before, after=fc.after)
-                    for fc in c.field_changes
+                    FieldChangeOut(field_path=fc.field_path, before=fc.before, after=fc.after) for fc in c.field_changes
                 ],
             )
             for c in result.changes
@@ -832,9 +823,7 @@ def _do_narrate(req: NarrateRequest) -> NarrateResponse:
     from iil_adrfw.narrate import Audience, compose_narrative, select_adrs
 
     if not (req.domain or req.id_set or req.path_filter):
-        raise ValueError(
-            "At least one selector required: domain, id_set, or path_filter"
-        )
+        raise ValueError("At least one selector required: domain, id_set, or path_filter")
     adrs = _load_constitution()
     selected = select_adrs(
         adrs,
@@ -852,10 +841,7 @@ def _do_narrate(req: NarrateRequest) -> NarrateResponse:
         audience=narrative.audience.value,
         title=narrative.title,
         intro=narrative.intro,
-        sections=[
-            NarrativeSectionOut(heading=s.heading, body=s.body)
-            for s in narrative.sections
-        ],
+        sections=[NarrativeSectionOut(heading=s.heading, body=s.body) for s in narrative.sections],
         adr_ids_covered=list(narrative.adr_ids_covered),
         markdown=narrative.render_markdown(),
         runtime_ms=narrative.runtime_ms,
@@ -936,7 +922,7 @@ def _do_validate(req: ValidateRequest) -> ValidateResponse:
             load_adr(md, schema_dir, validate=True)
             ok.append(md.name)
         except ADRLoadError as e:
-            msg = str(e).split('\n')[1] if '\n' in str(e) else str(e)[:120]
+            msg = str(e).split("\n")[1] if "\n" in str(e) else str(e)[:120]
             failures.append({"file": md.name, "error": msg})
         except Exception as e:
             failures.append({"file": md.name, "error": f"{type(e).__name__}: {str(e)[:100]}"})
@@ -1001,37 +987,55 @@ def adr_staleness(req: StalenessRequest) -> StalenessResponse:
             adrs_data.append(adr)
 
             adr_date = None
-            if hasattr(adr, 'decision_date') and adr.decision_date:
+            if hasattr(adr, "decision_date") and adr.decision_date:
                 try:
                     adr_date = date.fromisoformat(str(adr.decision_date)[:10])
                 except (ValueError, TypeError):
                     pass
 
-            status = adr.status.value if hasattr(adr.status, 'value') else str(adr.status)
-            if status.lower() in ('deprecated', 'superseded', 'rejected'):
+            status = adr.status.value if hasattr(adr.status, "value") else str(adr.status)
+            if status.lower() in ("deprecated", "superseded", "rejected"):
                 continue
 
             if adr_date and adr_date < threshold:
                 age_months = (today - adr_date).days // 30
-                findings.append({"adr_id": adr.id, "type": "stale", "severity": "warning",
-                                 "message": f"Decision date {adr_date} ({age_months}mo ago)"})
+                findings.append(
+                    {
+                        "adr_id": adr.id,
+                        "type": "stale",
+                        "severity": "warning",
+                        "message": f"Decision date {adr_date} ({age_months}mo ago)",
+                    }
+                )
 
-            review = getattr(adr, 'review_status', None)
-            if status.lower() == 'accepted' and not review:
-                findings.append({"adr_id": adr.id, "type": "no_review", "severity": "info",
-                                 "message": "Accepted ADR without review_status"})
+            review = getattr(adr, "review_status", None)
+            if status.lower() == "accepted" and not review:
+                findings.append(
+                    {
+                        "adr_id": adr.id,
+                        "type": "no_review",
+                        "severity": "info",
+                        "message": "Accepted ADR without review_status",
+                    }
+                )
         except Exception:
             continue
 
     for adr in adrs_data:
-        sup_by = getattr(adr, 'superseded_by', None)
+        sup_by = getattr(adr, "superseded_by", None)
         if sup_by:
             refs = sup_by if isinstance(sup_by, (list, tuple)) else [sup_by]
             for ref in refs:
                 ref_str = str(ref).strip()
                 if ref_str and ref_str not in all_ids:
-                    findings.append({"adr_id": adr.id, "type": "broken_ref", "severity": "error",
-                                     "message": f"superseded_by '{ref_str}' not found"})
+                    findings.append(
+                        {
+                            "adr_id": adr.id,
+                            "type": "broken_ref",
+                            "severity": "error",
+                            "message": f"superseded_by '{ref_str}' not found",
+                        }
+                    )
 
     return StalenessResponse(
         total_adrs=len(md_files),
@@ -1095,46 +1099,61 @@ def adr_impact(req: ImpactRequest) -> ImpactResponse:
     for adr in adrs:
         adr_id = adr.id
         title = adr.title
-        status = adr.status.value if hasattr(adr.status, 'value') else str(adr.status)
+        status = adr.status.value if hasattr(adr.status, "value") else str(adr.status)
 
         # Skip non-active ADRs
-        if status.lower() in ('deprecated', 'superseded', 'rejected'):
+        if status.lower() in ("deprecated", "superseded", "rejected"):
             continue
 
         # Check scope patterns
-        scope = getattr(adr, 'scope', None)
+        scope = getattr(adr, "scope", None)
         if scope:
-            scope_str = str(scope) if not hasattr(scope, 'glob_patterns') else ""
-            patterns = getattr(scope, 'glob_patterns', []) or []
+            scope_str = str(scope) if not hasattr(scope, "glob_patterns") else ""
+            patterns = getattr(scope, "glob_patterns", []) or []
             if not patterns and scope_str:
                 patterns = [p.strip() for p in scope_str.split(",") if p.strip()]
 
             for pattern in patterns:
                 if fnmatch.fnmatch(file_p, pattern) or fnmatch.fnmatch(file_p, f"**/{pattern}"):
-                    applicable.append(ImpactADR(
-                        adr_id=adr_id, title=title, status=status,
-                        relevance="direct", matched_by=f"scope: {pattern}",
-                    ))
+                    applicable.append(
+                        ImpactADR(
+                            adr_id=adr_id,
+                            title=title,
+                            status=status,
+                            relevance="direct",
+                            matched_by=f"scope: {pattern}",
+                        )
+                    )
                     break
 
         # Check domain overlap
-        adr_domains = set(getattr(adr, 'domains', []) or [])
+        adr_domains = set(getattr(adr, "domains", []) or [])
         overlap = path_domains & adr_domains
         if overlap and not any(a.adr_id == adr_id for a in applicable):
-            applicable.append(ImpactADR(
-                adr_id=adr_id, title=title, status=status,
-                relevance="domain", matched_by=f"domains: {', '.join(overlap)}",
-            ))
+            applicable.append(
+                ImpactADR(
+                    adr_id=adr_id,
+                    title=title,
+                    status=status,
+                    relevance="domain",
+                    matched_by=f"domains: {', '.join(overlap)}",
+                )
+            )
 
         # Check repo reference
         if req.repo:
-            consumers = getattr(adr, 'consumers', []) or []
-            if req.repo in consumers or req.repo in str(getattr(adr, 'scope', '')):
+            consumers = getattr(adr, "consumers", []) or []
+            if req.repo in consumers or req.repo in str(getattr(adr, "scope", "")):
                 if not any(a.adr_id == adr_id for a in applicable):
-                    applicable.append(ImpactADR(
-                        adr_id=adr_id, title=title, status=status,
-                        relevance="general", matched_by=f"repo: {req.repo}",
-                    ))
+                    applicable.append(
+                        ImpactADR(
+                            adr_id=adr_id,
+                            title=title,
+                            status=status,
+                            relevance="general",
+                            matched_by=f"repo: {req.repo}",
+                        )
+                    )
 
     # Sort: direct first, then domain, then general
     order = {"direct": 0, "domain": 1, "general": 2}

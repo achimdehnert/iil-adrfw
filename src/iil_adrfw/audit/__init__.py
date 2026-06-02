@@ -9,6 +9,7 @@ Auditors:
 - open_question_aging:  questions whose decide_by deadline has passed
 - conflict:             pairs of accepted ADRs whose rationale touches the same domain in opposing ways
 """
+
 from __future__ import annotations
 
 import re
@@ -42,7 +43,7 @@ class AuditFinding:
 class HealthSnapshot:
     score: float
     internal_consistency: float
-    code_alignment: float           # placeholder — needs adr_check integration
+    code_alignment: float  # placeholder — needs adr_check integration
     coverage: float
     freshness: float
     supersession_hygiene: float
@@ -87,67 +88,77 @@ def audit_supersession_hygiene(graph: ConstitutionGraph) -> list[AuditFinding]:
             # Bug #5 from adr-doctor review: self-reference is not a true
             # supersession (often a revision marker, e.g. 'supersedes: ADR-167 v1.0')
             if target_id == adr.id:
-                findings.append(AuditFinding(
-                    auditor="supersession_hygiene",
-                    severity=FindingSeverity.WARNING,
-                    affected_adrs=(adr.id,),
-                    description=(
-                        f"{adr.id} declares 'supersedes: {adr.id}' — self-reference "
-                        f"(likely a revision note, not a true supersession)"
-                    ),
-                    proposed_resolution=(
-                        "Remove the self-reference from supersedes; if you meant to "
-                        "track a revision, use the 'amended' field instead"
-                    ),
-                ))
+                findings.append(
+                    AuditFinding(
+                        auditor="supersession_hygiene",
+                        severity=FindingSeverity.WARNING,
+                        affected_adrs=(adr.id,),
+                        description=(
+                            f"{adr.id} declares 'supersedes: {adr.id}' — self-reference "
+                            f"(likely a revision note, not a true supersession)"
+                        ),
+                        proposed_resolution=(
+                            "Remove the self-reference from supersedes; if you meant to "
+                            "track a revision, use the 'amended' field instead"
+                        ),
+                    )
+                )
                 continue
             target = graph.by_id.get(target_id)
             if target is None:
                 # Cross-repo ADRs may legitimately not be in this graph;
                 # we report as WARNING (not ERROR) since absence may be benign.
-                findings.append(AuditFinding(
-                    auditor="supersession_hygiene",
-                    severity=FindingSeverity.WARNING,
-                    affected_adrs=(adr.id,),
-                    description=f"{adr.id} supersedes {ref} but {target_id} does not exist in the constitution",
-                    proposed_resolution=f"Either remove the reference, fix the typo, or add {target_id} to the ADR set",
-                ))
+                findings.append(
+                    AuditFinding(
+                        auditor="supersession_hygiene",
+                        severity=FindingSeverity.WARNING,
+                        affected_adrs=(adr.id,),
+                        description=f"{adr.id} supersedes {ref} but {target_id} does not exist in the constitution",
+                        proposed_resolution=f"Either remove the reference, fix the typo, or add {target_id} to the ADR set",
+                    )
+                )
                 continue
             target_back_refs = {_parse_ref(r)[0] for r in target.superseded_by}
             if adr.id not in target_back_refs:
-                findings.append(AuditFinding(
-                    auditor="supersession_hygiene",
-                    severity=FindingSeverity.ERROR,
-                    affected_adrs=(adr.id, target_id),
-                    description=(
-                        f"{adr.id} supersedes {target_id}, but {target_id}.superseded_by "
-                        f"is missing the back-reference"
-                    ),
-                    proposed_resolution=f"Add '{adr.id}' to {target_id}.superseded_by",
-                ))
+                findings.append(
+                    AuditFinding(
+                        auditor="supersession_hygiene",
+                        severity=FindingSeverity.ERROR,
+                        affected_adrs=(adr.id, target_id),
+                        description=(
+                            f"{adr.id} supersedes {target_id}, but {target_id}.superseded_by "
+                            f"is missing the back-reference"
+                        ),
+                        proposed_resolution=f"Add '{adr.id}' to {target_id}.superseded_by",
+                    )
+                )
             # Also: if A is superseded, its status should reflect that
             if adr.status.is_active() and target.status not in (Status.SUPERSEDED, Status.DEPRECATED):
-                findings.append(AuditFinding(
-                    auditor="supersession_hygiene",
-                    severity=FindingSeverity.WARNING,
-                    affected_adrs=(target_id,),
-                    description=(
-                        f"{target_id} is superseded by {adr.id} (active) but {target_id}.status "
-                        f"is still '{target.status.value}'"
-                    ),
-                    proposed_resolution=f"Set {target_id}.status to 'superseded'",
-                ))
+                findings.append(
+                    AuditFinding(
+                        auditor="supersession_hygiene",
+                        severity=FindingSeverity.WARNING,
+                        affected_adrs=(target_id,),
+                        description=(
+                            f"{target_id} is superseded by {adr.id} (active) but {target_id}.status "
+                            f"is still '{target.status.value}'"
+                        ),
+                        proposed_resolution=f"Set {target_id}.status to 'superseded'",
+                    )
+                )
 
         for ref in adr.superseded_by:
             target_id, _ = _parse_ref(ref)
             target = graph.by_id.get(target_id)
             if target is None:
-                findings.append(AuditFinding(
-                    auditor="supersession_hygiene",
-                    severity=FindingSeverity.ERROR,
-                    affected_adrs=(adr.id,),
-                    description=f"{adr.id} declares it is superseded by {ref}, but {target_id} doesn't exist",
-                ))
+                findings.append(
+                    AuditFinding(
+                        auditor="supersession_hygiene",
+                        severity=FindingSeverity.ERROR,
+                        affected_adrs=(adr.id,),
+                        description=f"{adr.id} declares it is superseded by {ref}, but {target_id} doesn't exist",
+                    )
+                )
 
     return findings
 
@@ -165,30 +176,32 @@ def audit_dependency_health(graph: ConstitutionGraph) -> list[AuditFinding]:
                 target_id, section = _parse_ref(ref)
                 target = graph.by_id.get(target_id)
                 if target is None:
-                    findings.append(AuditFinding(
-                        auditor="dependency_health",
-                        severity=FindingSeverity.ERROR,
-                        affected_adrs=(adr.id,),
-                        description=(
-                            f"{adr.id}.{relation} references {ref}, but {target_id} "
-                            f"is not in the constitution"
-                        ),
-                        proposed_resolution=f"Remove or fix the {relation} reference to {ref}",
-                    ))
+                    findings.append(
+                        AuditFinding(
+                            auditor="dependency_health",
+                            severity=FindingSeverity.ERROR,
+                            affected_adrs=(adr.id,),
+                            description=(
+                                f"{adr.id}.{relation} references {ref}, but {target_id} is not in the constitution"
+                            ),
+                            proposed_resolution=f"Remove or fix the {relation} reference to {ref}",
+                        )
+                    )
                 elif relation == "depends_on" and target.status in (Status.DEPRECATED, Status.REJECTED):
-                    findings.append(AuditFinding(
-                        auditor="dependency_health",
-                        severity=FindingSeverity.WARNING,
-                        affected_adrs=(adr.id, target_id),
-                        description=(
-                            f"{adr.id} depends on {target_id}, but {target_id} is "
-                            f"'{target.status.value}'"
-                        ),
-                        proposed_resolution=(
-                            f"Either revise {adr.id} to depend on a current ADR, or accept "
-                            f"the lifecycle mismatch consciously"
-                        ),
-                    ))
+                    findings.append(
+                        AuditFinding(
+                            auditor="dependency_health",
+                            severity=FindingSeverity.WARNING,
+                            affected_adrs=(adr.id, target_id),
+                            description=(
+                                f"{adr.id} depends on {target_id}, but {target_id} is '{target.status.value}'"
+                            ),
+                            proposed_resolution=(
+                                f"Either revise {adr.id} to depend on a current ADR, or accept "
+                                f"the lifecycle mismatch consciously"
+                            ),
+                        )
+                    )
     return findings
 
 
@@ -207,13 +220,15 @@ def audit_staleness(
             continue
         last_reviewed_str = adr.raw_frontmatter.get("last_reviewed")
         if not last_reviewed_str:
-            findings.append(AuditFinding(
-                auditor="staleness",
-                severity=FindingSeverity.INFO,
-                affected_adrs=(adr.id,),
-                description=f"{adr.id} has staleness_months={adr.staleness_months} but no last_reviewed date",
-                proposed_resolution="Set last_reviewed to current date if reviewed today",
-            ))
+            findings.append(
+                AuditFinding(
+                    auditor="staleness",
+                    severity=FindingSeverity.INFO,
+                    affected_adrs=(adr.id,),
+                    description=f"{adr.id} has staleness_months={adr.staleness_months} but no last_reviewed date",
+                    proposed_resolution="Set last_reviewed to current date if reviewed today",
+                )
+            )
             continue
         try:
             last_reviewed = datetime.fromisoformat(str(last_reviewed_str)).replace(tzinfo=UTC)
@@ -223,16 +238,18 @@ def audit_staleness(
         threshold = last_reviewed + timedelta(days=30 * adr.staleness_months)
         if now > threshold:
             days_overdue = (now - threshold).days
-            findings.append(AuditFinding(
-                auditor="staleness",
-                severity=FindingSeverity.WARNING,
-                affected_adrs=(adr.id,),
-                description=(
-                    f"{adr.id} last reviewed {last_reviewed.date()} "
-                    f"({days_overdue} days overdue against staleness_months={adr.staleness_months})"
-                ),
-                proposed_resolution=f"Schedule a review of {adr.id} within the next sprint",
-            ))
+            findings.append(
+                AuditFinding(
+                    auditor="staleness",
+                    severity=FindingSeverity.WARNING,
+                    affected_adrs=(adr.id,),
+                    description=(
+                        f"{adr.id} last reviewed {last_reviewed.date()} "
+                        f"({days_overdue} days overdue against staleness_months={adr.staleness_months})"
+                    ),
+                    proposed_resolution=f"Schedule a review of {adr.id} within the next sprint",
+                )
+            )
     return findings
 
 
@@ -246,16 +263,18 @@ def audit_coverage(graph: ConstitutionGraph) -> list[AuditFinding]:
         per_repo_repos = {prs.repo for prs in adr.per_repo_status}
         missing = [c for c in adr.consumers if c not in per_repo_repos]
         if missing:
-            findings.append(AuditFinding(
-                auditor="coverage",
-                severity=FindingSeverity.INFO,
-                affected_adrs=(adr.id,),
-                description=(
-                    f"{adr.id} lists {len(adr.consumers)} consumer-repos but "
-                    f"{len(missing)} have no per_repo_status: {', '.join(missing)}"
-                ),
-                proposed_resolution="Add per_repo_status entries for all consumers — even 'none' is informative",
-            ))
+            findings.append(
+                AuditFinding(
+                    auditor="coverage",
+                    severity=FindingSeverity.INFO,
+                    affected_adrs=(adr.id,),
+                    description=(
+                        f"{adr.id} lists {len(adr.consumers)} consumer-repos but "
+                        f"{len(missing)} have no per_repo_status: {', '.join(missing)}"
+                    ),
+                    proposed_resolution="Add per_repo_status entries for all consumers — even 'none' is informative",
+                )
+            )
     return findings
 
 
@@ -275,18 +294,15 @@ def audit_open_question_aging(
         except ValueError:
             continue
         if now > deadline:
-            findings.append(AuditFinding(
-                auditor="open_question_aging",
-                severity=FindingSeverity.WARNING,
-                affected_adrs=(adr.id,),
-                description=(
-                    f"{adr.id}/{q.id} ('{q.question[:80]}') decide-by {deadline.date()} "
-                    f"is overdue"
-                ),
-                proposed_resolution=(
-                    "Either resolve the question (set status='resolved') or extend decide_by"
-                ),
-            ))
+            findings.append(
+                AuditFinding(
+                    auditor="open_question_aging",
+                    severity=FindingSeverity.WARNING,
+                    affected_adrs=(adr.id,),
+                    description=(f"{adr.id}/{q.id} ('{q.question[:80]}') decide-by {deadline.date()} is overdue"),
+                    proposed_resolution=("Either resolve the question (set status='resolved') or extend decide_by"),
+                )
+            )
     return findings
 
 
@@ -300,16 +316,12 @@ def audit_conflict_pairs(graph: ConstitutionGraph) -> list[AuditFinding]:
     active = [a for a in graph.adrs if a.status.is_active()]
 
     for i, a in enumerate(active):
-        for b in active[i + 1:]:
+        for b in active[i + 1 :]:
             shared_domains = set(a.domains) & set(b.domains)
-            shared_supersedes = (
-                {_parse_ref(r)[0] for r in a.supersedes}
-                & {_parse_ref(r)[0] for r in b.supersedes}
-            )
-            shared_consolidates = (
-                {_parse_ref(r)[0] for r in a.consolidates}
-                & {_parse_ref(r)[0] for r in b.consolidates}
-            )
+            shared_supersedes = {_parse_ref(r)[0] for r in a.supersedes} & {_parse_ref(r)[0] for r in b.supersedes}
+            shared_consolidates = {_parse_ref(r)[0] for r in a.consolidates} & {
+                _parse_ref(r)[0] for r in b.consolidates
+            }
             shared = shared_supersedes | shared_consolidates
             if shared and shared_domains:
                 # Either A consolidates B, B consolidates A, or they conflict
@@ -317,19 +329,21 @@ def audit_conflict_pairs(graph: ConstitutionGraph) -> list[AuditFinding]:
                 b_cs = {_parse_ref(r)[0] for r in b.consolidates}
                 if b.id in a_cs or a.id in b_cs:
                     continue
-                findings.append(AuditFinding(
-                    auditor="conflict",
-                    severity=FindingSeverity.ERROR,
-                    affected_adrs=(a.id, b.id),
-                    description=(
-                        f"{a.id} and {b.id} both supersede/consolidate {sorted(shared)} "
-                        f"and share domains {sorted(shared_domains)}, with no consolidation between them"
-                    ),
-                    proposed_resolution=(
-                        f"Consolidate {a.id} and {b.id} into one, or clarify which one "
-                        f"is the authoritative supersession"
-                    ),
-                ))
+                findings.append(
+                    AuditFinding(
+                        auditor="conflict",
+                        severity=FindingSeverity.ERROR,
+                        affected_adrs=(a.id, b.id),
+                        description=(
+                            f"{a.id} and {b.id} both supersede/consolidate {sorted(shared)} "
+                            f"and share domains {sorted(shared_domains)}, with no consolidation between them"
+                        ),
+                        proposed_resolution=(
+                            f"Consolidate {a.id} and {b.id} into one, or clarify which one "
+                            f"is the authoritative supersession"
+                        ),
+                    )
+                )
     return findings
 
 
@@ -361,7 +375,7 @@ def audit_redundancy(graph: ConstitutionGraph) -> list[AuditFinding]:
         for ref in a.supersedes + a.superseded_by + a.consolidates:
             a_related.add(_parse_ref(ref)[0])
 
-        for b in active[i + 1:]:
+        for b in active[i + 1 :]:
             if not b.domains:
                 continue
             pair_key = (min(a.id, b.id), max(a.id, b.id))
@@ -391,21 +405,23 @@ def audit_redundancy(graph: ConstitutionGraph) -> list[AuditFinding]:
             # Filter: require either 2+ shared domains, or 1 shared domain + title overlap > 0.3
             if len(shared_domains) >= 2 or (len(shared_domains) >= 1 and title_overlap > 0.3):
                 seen_pairs.add(pair_key)
-                findings.append(AuditFinding(
-                    auditor="redundancy_detector",
-                    severity=FindingSeverity.INFO,
-                    affected_adrs=(a.id, b.id),
-                    description=(
-                        f"Consolidation candidate: {a.id} ({a.title!r}) and {b.id} ({b.title!r}) "
-                        f"share domain(s) {sorted(shared_domains)}, title overlap {title_overlap:.0%}, "
-                        f"both active, no supersession link"
-                    ),
-                    proposed_resolution=(
-                        "Consider consolidating into one ADR, or add explicit "
-                        "'depends_on'/'supersedes' relationship to clarify independence"
-                    ),
-                    evidence=tuple(sorted(shared_domains)),
-                ))
+                findings.append(
+                    AuditFinding(
+                        auditor="redundancy_detector",
+                        severity=FindingSeverity.INFO,
+                        affected_adrs=(a.id, b.id),
+                        description=(
+                            f"Consolidation candidate: {a.id} ({a.title!r}) and {b.id} ({b.title!r}) "
+                            f"share domain(s) {sorted(shared_domains)}, title overlap {title_overlap:.0%}, "
+                            f"both active, no supersession link"
+                        ),
+                        proposed_resolution=(
+                            "Consider consolidating into one ADR, or add explicit "
+                            "'depends_on'/'supersedes' relationship to clarify independence"
+                        ),
+                        evidence=tuple(sorted(shared_domains)),
+                    )
+                )
     return findings
 
 
@@ -438,7 +454,8 @@ def compute_health(graph: ConstitutionGraph, findings: list[AuditFinding]) -> He
     else:
         gap = sum(
             int(re.search(r"(\d+) have no", f.description).group(1))
-            if re.search(r"(\d+) have no", f.description) else 0
+            if re.search(r"(\d+) have no", f.description)
+            else 0
             for f in coverage_findings
         )
         coverage = max(0.0, 1.0 - gap / consumers_total)
@@ -485,6 +502,7 @@ def run_audit(
 ) -> AuditReport:
     """Run selected auditors (or all). Returns aggregated AuditReport with HealthSnapshot."""
     import time
+
     start = time.monotonic()
     chosen = list(auditors) if auditors else list(_AUDITORS.keys())
     findings: list[AuditFinding] = []

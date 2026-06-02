@@ -13,6 +13,7 @@ Selection modes:
   - path_filter: all ADRs whose scope.include_paths or drift_check_paths
                  match the given path glob
 """
+
 from __future__ import annotations
 
 from collections.abc import Iterable
@@ -103,7 +104,7 @@ def _adr_one_liner(adr: ADR, audience: Audience) -> str:
         return f"**{adr.id}**{repo} ({adr.status.value}{consumers_part}) — {adr.title}"
     if audience == Audience.AUDITOR:
         deciders = ", ".join(adr.deciders[:2])
-        more = f" +{len(adr.deciders)-2}" if len(adr.deciders) > 2 else ""
+        more = f" +{len(adr.deciders) - 2}" if len(adr.deciders) > 2 else ""
         date = adr.decision_date.date().isoformat() if adr.decision_date else "?"
         return f"**{adr.id}** ({adr.status.value}, {date}, deciders: {deciders}{more}) — {adr.title}"
     return f"**{adr.id}** — {adr.title}"
@@ -115,10 +116,7 @@ def _tradeoff_summary(adr: ADR) -> str:
     if adr.decision_drivers:
         critical = [d for d in adr.decision_drivers if d.weight == "critical"]
         if critical:
-            parts.append(
-                "**Critical drivers:** "
-                + "; ".join(f"{d.id} {d.driver}" for d in critical[:3])
-            )
+            parts.append("**Critical drivers:** " + "; ".join(f"{d.id} {d.driver}" for d in critical[:3]))
     if adr.open_questions:
         open_qs = [q for q in adr.open_questions if q.status == "open"]
         if open_qs:
@@ -138,21 +136,12 @@ def _section_overview(adrs: list[ADR], audience: Audience) -> NarrativeSection:
     for a in adrs:
         statuses[a.status.value] = statuses.get(a.status.value, 0) + 1
     status_line = ", ".join(f"{k}: {v}" for k, v in sorted(statuses.items()))
-    body = (
-        f"This set contains {len(adrs)} ADR(s). "
-        f"Status distribution: {status_line}.\n\n"
-    )
+    body = f"This set contains {len(adrs)} ADR(s). Status distribution: {status_line}.\n\n"
     if audience == Audience.AUDITOR:
-        with_critical_drivers = sum(
-            1 for a in adrs
-            if any(d.weight == "critical" for d in a.decision_drivers)
-        )
+        with_critical_drivers = sum(1 for a in adrs if any(d.weight == "critical" for d in a.decision_drivers))
         if with_critical_drivers:
             body += f"{with_critical_drivers} ADR(s) carry at least one CRITICAL decision driver. "
-        with_open_questions = sum(
-            1 for a in adrs
-            if any(q.status == "open" for q in a.open_questions)
-        )
+        with_open_questions = sum(1 for a in adrs if any(q.status == "open" for q in a.open_questions))
         if with_open_questions:
             body += f"{with_open_questions} ADR(s) have open questions tracked. "
     return NarrativeSection(heading="Overview", body=body)
@@ -214,10 +203,7 @@ def _section_compliance_trail(adrs: list[ADR]) -> NarrativeSection:
         if regulatory:
             regulatory_part = "  \n  *Regulatory drivers:* " + "; ".join(d.driver for d in regulatory)
         items.append(
-            f"- **{a.id}** ({a.status.value})\n"
-            f"  Decision date: {date}\n"
-            f"  Deciders: {deciders}"
-            + regulatory_part
+            f"- **{a.id}** ({a.status.value})\n  Decision date: {date}\n  Deciders: {deciders}" + regulatory_part
         )
     body = "\n".join(items) if items else "(none)"
     return NarrativeSection(
@@ -248,6 +234,7 @@ def compose_narrative(
       5. Compliance trail
     """
     import time
+
     start = time.monotonic()
 
     title_map = {
@@ -298,6 +285,7 @@ def select_adrs(
         id_lookup = set(id_set)
         out = [a for a in out if a.id in id_lookup]
     if path_filter:
+
         def matches(a: ADR) -> bool:
             scope_globs = a.raw_frontmatter.get("scope", {}).get("include_paths") or []
             drift_globs = list(a.drift_check_paths)
@@ -305,5 +293,6 @@ def select_adrs(
                 if fnmatch(path_filter, g):
                     return True
             return False
+
         out = [a for a in out if matches(a)]
     return out

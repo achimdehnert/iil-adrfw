@@ -13,6 +13,7 @@ Design principle: the tool itself makes NO LLM calls. It is deterministic,
 testable, and fast. Body generation is delegated to the consumer LLM, which
 already has context the tool doesn't.
 """
+
 from __future__ import annotations
 
 import re
@@ -37,6 +38,7 @@ from iil_adrfw.graph import ConstitutionGraph, _tokenize
 @dataclass(frozen=True)
 class ProposalConflict:
     """A conflict detected during pre-publish validation of a draft."""
+
     kind: str  # 'duplicate', 'missed_supersession', 'doc_overlap'
     severity: str  # 'info' | 'warning' | 'error'
     related_adr_ids: tuple[str, ...]
@@ -47,6 +49,7 @@ class ProposalConflict:
 @dataclass(frozen=True)
 class OpenQuestionMatch:
     """An existing open question this proposal might close."""
+
     adr_id: str
     q_id: str
     question: str
@@ -56,9 +59,10 @@ class OpenQuestionMatch:
 @dataclass
 class ProposalResult:
     """Full output of adr_propose."""
-    proposed_id: str                          # next available ADR-id
-    frontmatter: dict[str, Any]               # complete, schema-validatable
-    body_prompt: str                           # what a consumer LLM should expand into the body
+
+    proposed_id: str  # next available ADR-id
+    frontmatter: dict[str, Any]  # complete, schema-validatable
+    body_prompt: str  # what a consumer LLM should expand into the body
     conflicts: list[ProposalConflict] = field(default_factory=list)
     closes_open_questions: list[OpenQuestionMatch] = field(default_factory=list)
     cross_repo_blockers: list[dict] = field(default_factory=list)
@@ -129,39 +133,42 @@ def _detect_duplicate_title(
             existing_rationale_tokens = _tokenize(adr.rationale_summary)
             if existing_rationale_tokens:
                 union = proposed_rationale_tokens | existing_rationale_tokens
-                rationale_overlap = len(proposed_rationale_tokens & existing_rationale_tokens) / len(union) if union else 0.0
+                rationale_overlap = (
+                    len(proposed_rationale_tokens & existing_rationale_tokens) / len(union) if union else 0.0
+                )
 
         # Combined score: title is primary, rationale is a boost
         combined = title_overlap + (rationale_overlap * 0.3)
 
         if title_overlap >= block_threshold or (title_overlap >= threshold and combined >= block_threshold):
-            findings.append(ProposalConflict(
-                kind="duplicate",
-                severity="error",
-                related_adr_ids=(adr.id,),
-                description=(
-                    f"DUPLICATE DETECTED: Proposed title overlaps {title_overlap:.0%} with "
-                    f"existing {adr.id}: {adr.title!r} (combined score: {combined:.0%})"
-                ),
-                suggestion=(
-                    f"This proposal appears to duplicate {adr.id}. Either supersede it "
-                    f"(add to 'supersedes') or abandon this proposal."
-                ),
-            ))
+            findings.append(
+                ProposalConflict(
+                    kind="duplicate",
+                    severity="error",
+                    related_adr_ids=(adr.id,),
+                    description=(
+                        f"DUPLICATE DETECTED: Proposed title overlaps {title_overlap:.0%} with "
+                        f"existing {adr.id}: {adr.title!r} (combined score: {combined:.0%})"
+                    ),
+                    suggestion=(
+                        f"This proposal appears to duplicate {adr.id}. Either supersede it "
+                        f"(add to 'supersedes') or abandon this proposal."
+                    ),
+                )
+            )
         elif title_overlap >= threshold:
-            findings.append(ProposalConflict(
-                kind="duplicate",
-                severity="warning",
-                related_adr_ids=(adr.id,),
-                description=(
-                    f"Proposed title overlaps {title_overlap:.0%} with existing {adr.id}: "
-                    f"{adr.title!r}"
-                ),
-                suggestion=(
-                    f"If this proposal is meant to supersede {adr.id}, add it to "
-                    f"'supersedes'. Otherwise rename to clarify the difference."
-                ),
-            ))
+            findings.append(
+                ProposalConflict(
+                    kind="duplicate",
+                    severity="warning",
+                    related_adr_ids=(adr.id,),
+                    description=(f"Proposed title overlaps {title_overlap:.0%} with existing {adr.id}: {adr.title!r}"),
+                    suggestion=(
+                        f"If this proposal is meant to supersede {adr.id}, add it to "
+                        f"'supersedes'. Otherwise rename to clarify the difference."
+                    ),
+                )
+            )
     return findings
 
 
@@ -191,20 +198,22 @@ def _detect_domain_overlap_without_supersession(
         overlap = len(proposed_set & existing_set)
         if overlap >= 2 or (overlap >= 1 and len(proposed_set) == 1):
             shared = sorted(proposed_set & existing_set)
-            findings.append(ProposalConflict(
-                kind="missed_supersession",
-                severity="info",
-                related_adr_ids=(adr.id,),
-                description=(
-                    f"Proposed ADR shares {overlap} domain tag(s) {shared} with active "
-                    f"{adr.id} ({adr.title!r}) but doesn't supersede or consolidate it"
-                ),
-                suggestion=(
-                    f"Verify intent: should this proposal extend {adr.id}, supersede it, "
-                    f"consolidate with it, or live independently? If independent, the "
-                    f"overlap is fine — document why in 'depends_on' or 'informs'."
-                ),
-            ))
+            findings.append(
+                ProposalConflict(
+                    kind="missed_supersession",
+                    severity="info",
+                    related_adr_ids=(adr.id,),
+                    description=(
+                        f"Proposed ADR shares {overlap} domain tag(s) {shared} with active "
+                        f"{adr.id} ({adr.title!r}) but doesn't supersede or consolidate it"
+                    ),
+                    suggestion=(
+                        f"Verify intent: should this proposal extend {adr.id}, supersede it, "
+                        f"consolidate with it, or live independently? If independent, the "
+                        f"overlap is fine — document why in 'depends_on' or 'informs'."
+                    ),
+                )
+            )
     return findings
 
 
@@ -225,12 +234,14 @@ def _detect_open_question_closure(
             continue
         overlap = len(proposal_tokens & q_tokens) / max(1, len(q_tokens))
         if overlap >= threshold:
-            matches.append(OpenQuestionMatch(
-                adr_id=adr.id,
-                q_id=q.id,
-                question=q.question,
-                overlap_score=round(overlap, 2),
-            ))
+            matches.append(
+                OpenQuestionMatch(
+                    adr_id=adr.id,
+                    q_id=q.id,
+                    question=q.question,
+                    overlap_score=round(overlap, 2),
+                )
+            )
     matches.sort(key=lambda m: -m.overlap_score)
     return matches
 
@@ -300,8 +311,7 @@ def _build_body_prompt(
     lines = [
         f"# Body prompt for {title}",
         "",
-        "Generate a markdown body for this ADR with the following sections, "
-        "in this order:",
+        "Generate a markdown body for this ADR with the following sections, in this order:",
         "",
         "## Required sections",
         "- **Context**: 2-4 paragraphs. State the situation that necessitates this decision. "
@@ -352,6 +362,7 @@ def _build_body_prompt(
 @dataclass
 class ProposalRequest:
     """Inputs to adr_propose."""
+
     title: str
     domains: list[str]
     deciders: list[str]
@@ -391,7 +402,9 @@ def propose_adr(
         req.consolidates or [],
     )
     closes = _detect_open_question_closure(
-        graph, req.title, req.rationale_summary,
+        graph,
+        req.title,
+        req.rationale_summary,
     )
 
     conflicts = duplicate_findings + overlap_findings
@@ -433,10 +446,7 @@ def propose_adr(
             depends_on=tuple(req.depends_on or []),
             raw_frontmatter=fm,
         )
-        layouts = [
-            ConsumerRepoLayout(name=name, root=Path(root))
-            for name, root in req.cross_repo_paths.items()
-        ]
+        layouts = [ConsumerRepoLayout(name=name, root=Path(root)) for name, root in req.cross_repo_paths.items()]
         report = validate_cross_repo(draft, layouts)
         for c in report.conflicts:
             entry = {

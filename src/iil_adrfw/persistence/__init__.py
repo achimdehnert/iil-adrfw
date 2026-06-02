@@ -1,4 +1,5 @@
 """Load ADRs from markdown files with YAML frontmatter, plus sibling .rules.yaml files."""
+
 from __future__ import annotations
 
 import json
@@ -80,21 +81,33 @@ def detect_legacy_aliases(frontmatter: dict) -> list[tuple[str, str]]:
 # Fields stripped entirely — too low-frequency and/or semantically distinct
 # from any schema field. They survive in the markdown body if needed.
 # NOTE: "reviewed-by" was stripped in v3 but is now aliased to reviewed_by in v4.
-_STRIPPED_FIELDS: frozenset[str] = frozenset({
-    "reviewed", "repos",
-    # Tool-specific noise (Jekyll, audit transients, etc.):
-    "nav_order", "parent", "commit", "product_name",
-    "supersedes_check", "superseded_by_planned",
-    # Revision metadata (not schema fields):
-    "revised", "revision",
-})
+_STRIPPED_FIELDS: frozenset[str] = frozenset(
+    {
+        "reviewed",
+        "repos",
+        # Tool-specific noise (Jekyll, audit transients, etc.):
+        "nav_order",
+        "parent",
+        "commit",
+        "product_name",
+        "supersedes_check",
+        "superseded_by_planned",
+        # Revision metadata (not schema fields):
+        "revised",
+        "revision",
+    }
+)
 
 # Filename pattern for id inference
 _FILENAME_ID_RE = re.compile(r"^(ADR-\d{3,5})")
 
 # Fields that should be arrays — auto-wrap scalars.
 _AUTO_WRAP_FIELDS: tuple[str, ...] = (
-    "deciders", "consulted", "informed", "domains", "amends",
+    "deciders",
+    "consulted",
+    "informed",
+    "domains",
+    "amends",
 )
 # Values that mean "empty list" when seen as a scalar in an array field.
 _EMPTY_LIST_SENTINELS: frozenset[str] = frozenset({"–", "-", "—", "n/a", "none", ""})
@@ -168,7 +181,7 @@ def _normalize_frontmatter(
     for date_field in ("decision_date", "last_reviewed", "updated", "valid_from", "valid_to", "knowledge_from"):
         v = frontmatter.get(date_field)
         if v is not None and not isinstance(v, str):
-            frontmatter[date_field] = str(v)[:10] if hasattr(v, 'year') else str(v)
+            frontmatter[date_field] = str(v)[:10] if hasattr(v, "year") else str(v)
         elif isinstance(v, str):
             # Strip version suffixes like '2026-03-11-v1.2' from any date field
             m_date = re.match(r"^(\d{4}-\d{2}-\d{2})", v)
@@ -224,8 +237,16 @@ def _normalize_frontmatter(
                 frontmatter[field] = [v]
 
     # C.4 — Reference field normalization (string-form refs to arrays)
-    _ref_fields = ("supersedes", "superseded_by", "depends_on", "consolidates",
-                   "conflicts_with", "informs", "related", "amends")
+    _ref_fields = (
+        "supersedes",
+        "superseded_by",
+        "depends_on",
+        "consolidates",
+        "conflicts_with",
+        "informs",
+        "related",
+        "amends",
+    )
     for field in _ref_fields:
         v = frontmatter.get(field)
         if isinstance(v, str):
@@ -278,16 +299,26 @@ def _normalize_frontmatter(
 
     # C.5g — implementation_status normalization (non-standard values)
     _IMPL_STATUS_ALIAS = {
-        "not_started": "none", "done": "implemented",
-        "superseded": "none", "not started": "none",
+        "not_started": "none",
+        "done": "implemented",
+        "superseded": "none",
+        "not started": "none",
     }
     impl_s = frontmatter.get("implementation_status")
     if isinstance(impl_s, str):
         impl_lower = impl_s.strip().lower()
         if impl_lower in _IMPL_STATUS_ALIAS:
             frontmatter["implementation_status"] = _IMPL_STATUS_ALIAS[impl_lower]
-        elif impl_lower not in ("none", "planned", "in_progress", "partial",
-                                "implemented", "complete", "verified", "rolled_back"):
+        elif impl_lower not in (
+            "none",
+            "planned",
+            "in_progress",
+            "partial",
+            "implemented",
+            "complete",
+            "verified",
+            "rolled_back",
+        ):
             # Non-standard value: if contains 'complete' treat as partial/complete
             if "complete" in impl_lower:
                 frontmatter["implementation_status"] = "partial"
@@ -398,9 +429,7 @@ def _to_datetime(value: Any) -> datetime:
 def _build_temporal(data: dict[str, Any], default_valid_from: datetime) -> TemporalRange:
     valid_from = _to_datetime(data["valid_from"]) if data.get("valid_from") else default_valid_from
     valid_to = _to_datetime(data["valid_to"]) if data.get("valid_to") else None
-    knowledge_from = (
-        _to_datetime(data["knowledge_from"]) if data.get("knowledge_from") else valid_from
-    )
+    knowledge_from = _to_datetime(data["knowledge_from"]) if data.get("knowledge_from") else valid_from
     return TemporalRange(
         valid_from=valid_from,
         valid_to=valid_to,
@@ -571,15 +600,19 @@ def load_adr(
     )
     per_repo: list[PerRepoStatus] = []
     for repo_name, prs in (frontmatter.get("per_repo_status") or {}).items():
-        per_repo.append(PerRepoStatus(
-            repo=repo_name,
-            status=Status(prs["status"]) if "status" in prs else None,
-            implementation_status=prs.get("implementation_status", "none"),
-            planned_phase=str(prs["planned_phase"]) if prs.get("planned_phase") is not None else None,
-            target_date=_to_datetime(prs["target_date"]) if prs.get("target_date") else None,
-            actual_completion_date=_to_datetime(prs["actual_completion_date"]) if prs.get("actual_completion_date") else None,
-            notes=prs.get("notes", ""),
-        ))
+        per_repo.append(
+            PerRepoStatus(
+                repo=repo_name,
+                status=Status(prs["status"]) if "status" in prs else None,
+                implementation_status=prs.get("implementation_status", "none"),
+                planned_phase=str(prs["planned_phase"]) if prs.get("planned_phase") is not None else None,
+                target_date=_to_datetime(prs["target_date"]) if prs.get("target_date") else None,
+                actual_completion_date=_to_datetime(prs["actual_completion_date"])
+                if prs.get("actual_completion_date")
+                else None,
+                notes=prs.get("notes", ""),
+            )
+        )
 
     adr = ADR(
         id=frontmatter["id"],
@@ -642,9 +675,7 @@ def _load_rules(
             raise ADRLoadError(f"{rules_path}: rules validation failed:\n" + "\n".join(messages))
 
     if doc.get("adr_id") != adr_id:
-        raise ADRLoadError(
-            f"{rules_path}: adr_id {doc.get('adr_id')!r} does not match parent ADR {adr_id!r}"
-        )
+        raise ADRLoadError(f"{rules_path}: adr_id {doc.get('adr_id')!r} does not match parent ADR {adr_id!r}")
 
     default_severity = Severity(doc.get("default_severity", "warning"))
 

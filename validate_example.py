@@ -1,4 +1,5 @@
 """Validate all example ADRs against the schemas."""
+
 import json
 import re
 import sys
@@ -67,14 +68,16 @@ def validate_adr(md_path: Path) -> bool:
         print(f"  OK    rules ({len(rules_doc['rules'])} rules)")
 
         if rules_doc["adr_id"] != frontmatter["id"]:
-            print(f"  FAIL  rules.adr_id mismatch")
+            print("  FAIL  rules.adr_id mismatch")
             return False
 
     if "amended" in frontmatter:
         print(f"  >>    amended: {len(frontmatter['amended'])} revision(s)")
     if "decision_drivers" in frontmatter:
         weights = [d["weight"] for d in frontmatter["decision_drivers"]]
-        print(f"  >>    decision_drivers: {len(frontmatter['decision_drivers'])} ({weights.count('critical')} critical)")
+        print(
+            f"  >>    decision_drivers: {len(frontmatter['decision_drivers'])} ({weights.count('critical')} critical)"
+        )
     if "open_questions" in frontmatter:
         print(f"  >>    open_questions: {len(frontmatter['open_questions'])} open")
     if "deprecation_timeline" in frontmatter:

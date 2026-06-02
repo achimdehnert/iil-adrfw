@@ -1,4 +1,5 @@
 """meiki-hub Fallakten model — UUID tenant_id."""
+
 from django.db import models
 
 
