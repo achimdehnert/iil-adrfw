@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [0.6.0] — 2026-05-30
 
+### Added — `metrics` CLI command (Schema v4 controlling)
+
+- **New `iil-adrfw metrics` subcommand**: computes Schema v4 controlling metrics
+  (`inbound_links`, `ttd_days`, `ttr_days`, `ai_interactions`) across an ADR directory.
+  Flags: `--adr-dir`, `--report` (Markdown table), `--write` (persist `metrics` object
+  into each ADR frontmatter), `--json` (machine-readable for downstream steps).
+  Backs the platform `adr-nightly-metrics.yml` pipeline — which pins `iil-adrfw>=0.5.0`
+  but requires this command, only available from 0.6.0 onward.
+
 ### Added — frontmatter alias deprecation warnings
 
 - **`validate` now reports non-canonical frontmatter keys** as deprecation warnings.
