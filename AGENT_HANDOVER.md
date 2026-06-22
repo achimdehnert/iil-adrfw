@@ -7,8 +7,11 @@
 
 - Version: **0.6.0** (`pyproject` + CHANGELOG top entry aligned).
 - Tests: green — `make test` → 94 passed (suite in `examples/`, order-stable).
-- Lint: `ruff check .` clean. Types: `mypy` ~38 errors (advisory, not gated).
-- CI: `ci.yml` (lint + test) + `publish.yml` (PyPI, `workflow_dispatch`).
+- Lint: `ruff check .` clean. Types: `make types` (mypy) — 37 errors remain
+  (advisory harness, **not** gated in CI).
+- Coverage: `make test` enforces `--cov-fail-under=55`; current ~59%.
+- CI: `ci.yml` (lint + full `make test` suite with coverage) + `publish.yml`
+  (PyPI, `workflow_dispatch`).
 
 ## Recently landed
 
@@ -25,13 +28,15 @@
   command. Publishing is a gated decision (see CLAUDE.md → Release).
 - Stale duplicate checkout `~/github/iil-adrfw-repo` (same name+version, behind
   `origin/main`) — risk of editing stale code; prefer `~/github/iil-adrfw`.
-- `mypy` not green; no `[tool.mypy]` config; no coverage gate.
+- **Type backlog:** 37 genuine mypy errors across 7 files (`make types`) — these
+  are real type issues, not stub noise. Good first optimization target.
 
 ## Next priorities
 
 1. Decide/execute the gated 0.6.0 PyPI publish (unblocks the nightly pipeline).
-2. Introduce a `[tool.mypy]` config (start lenient) and drive the type errors down.
-3. Add a coverage floor once the suite coverage is measured.
+2. Drive the 37 mypy errors to zero, then promote `make types` to a CI gate.
+3. Raise the coverage floor (currently 55, actual ~59) as coverage improves;
+   the heaviest gaps are `server.py` (72%) and `persistence/` (77%).
 
 ## Pointers
 

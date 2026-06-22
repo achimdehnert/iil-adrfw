@@ -26,7 +26,6 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
-      - run: python examples/test_e2e_schema_v3.py
-      - run: python examples/test_e2e.py
-      - run: python examples/test_e2e_v11.py
-      - run: python examples/test_e2e_regression.py
+      # Run the full pytest suite (all examples/ modules) with the coverage gate,
+      # instead of executing only four example files as standalone scripts.
+      - run: make test
