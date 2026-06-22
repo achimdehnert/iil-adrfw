@@ -15,8 +15,13 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # The PyPI trusted publisher was registered with environment "pypi".
+    # Declaring it here makes the OIDC token carry that environment claim so it
+    # matches (a blank publisher environment also matches, so this is safe).
+    environment: pypi
     permissions:
       contents: read
+      id-token: write  # OIDC token for PyPI Trusted Publishing (no API token)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -32,9 +37,6 @@ jobs:
       - name: Check dist
         run: twine check dist/*
 
-      - name: Upload to PyPI
+      - name: Publish to PyPI (Trusted Publishing / OIDC)
         if: inputs.dry_run == 'false'
-        env:
-          TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-        run: twine upload dist/*
+        uses: pypa/gh-action-pypi-publish@release/v1
