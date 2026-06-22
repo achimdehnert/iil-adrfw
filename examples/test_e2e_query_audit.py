@@ -25,6 +25,22 @@ os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
 os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
 os.environ["IIL_ADRFW_REPO_ROOT"] = str(REPO_ROOT)
 
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _isolate_env(monkeypatch):
+    """Re-point env to THIS module's dirs before each test.
+
+    The module-level os.environ assignments above run once at import and get
+    clobbered by whichever example module is collected last (shared env key),
+    making the active ADRS dir collection-order dependent. The server reads
+    these vars fresh per call, so per-test setenv fully isolates the modules.
+    """
+    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(ADRS_DIR))
+    monkeypatch.setenv("IIL_ADRFW_SCHEMAS_DIR", str(SCHEMAS_DIR))
+    monkeypatch.setenv("IIL_ADRFW_REPO_ROOT", str(REPO_ROOT))
+
 from iil_adrfw.server import (  # noqa: E402
     AuditRequest,
     QueryRequest,

@@ -28,6 +28,22 @@ os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
 os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
 os.environ["IIL_ADRFW_REPO_ROOT"] = str(WORKSPACE)
 
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _isolate_env(monkeypatch):
+    """Re-point env to THIS module's dirs before each test.
+
+    The module-level os.environ assignments above run once at import and get
+    clobbered by whichever example module is collected last (shared env key),
+    making the active ADRS dir collection-order dependent. The server reads
+    these vars fresh per call, so per-test setenv fully isolates the modules.
+    """
+    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(ADRS_DIR))
+    monkeypatch.setenv("IIL_ADRFW_SCHEMAS_DIR", str(SCHEMAS_DIR))
+    monkeypatch.setenv("IIL_ADRFW_REPO_ROOT", str(WORKSPACE))
+
 from iil_adrfw.server import DecisionDriverIn, ProposeRequest, _do_propose  # noqa: E402
 
 # Build a frontmatter validator for assertion tests
