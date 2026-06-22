@@ -68,7 +68,7 @@ published PyPI version in sync.
 
 ## Known issues / gotchas
 
-- `mypy` is not yet green (~38 errors); treat the type pass as advisory until
-  cleaned up. No `[tool.mypy]` config yet.
-- No coverage gate configured.
+- `make types` (mypy) has a config but is **not** yet green (37 errors) and is
+  advisory — not gated in CI. Driving it to zero is a good first optimization.
+- `make test` enforces `--cov-fail-under=55` (actual ~59%); raise as it improves.
 - See `AGENT_HANDOVER.md` for current state and next priorities.

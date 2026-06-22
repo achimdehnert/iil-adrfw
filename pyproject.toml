@@ -24,6 +24,7 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
+    "pytest-cov>=5.0",
     "ruff>=0.7",
     "mypy>=1.11",
 ]
@@ -58,3 +59,23 @@ ignore = ["E501", "UP042"]
 [tool.ruff.lint.per-file-ignores]
 # __init__.py modules re-export public API; unused-import (F401) is by design.
 "__init__.py" = ["F401"]
+
+[tool.pytest.ini_options]
+testpaths = ["examples"]
+# Coverage gate ratchets from the current ~59%. Raise the floor as coverage
+# improves; never lower it silently.
+addopts = "--cov=iil_adrfw --cov-report=term-missing --cov-fail-under=55"
+
+[tool.coverage.run]
+source = ["iil_adrfw"]
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.mypy]
+# Advisory type-check harness — wired via `make types`, NOT yet error-free.
+# ~37 genuine type issues remain (tracked in AGENT_HANDOVER.md as work for a
+# stronger model to drive down). `ignore_missing_imports` clears third-party
+# stub noise so the real backlog is what surfaces.
+python_version = "3.12"
+ignore_missing_imports = true
