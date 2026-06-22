@@ -15,6 +15,10 @@ on:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    # The PyPI trusted publisher was registered with environment "pypi".
+    # Declaring it here makes the OIDC token carry that environment claim so it
+    # matches (a blank publisher environment also matches, so this is safe).
+    environment: pypi
     permissions:
       contents: read
       id-token: write  # OIDC token for PyPI Trusted Publishing (no API token)
