@@ -5,6 +5,12 @@ description = "Architectural Decision Record framework with bi-temporal validity
 readme = "README.md"
 requires-python = ">=3.12"
 authors = [{ name = "Achim Dehnert", email = "achim@iil.gmbh" }]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Quality Assurance",
+]
 dependencies = [
     "fastmcp>=3.0",
     "libcst>=1.5",
