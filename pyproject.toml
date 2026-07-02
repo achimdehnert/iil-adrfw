@@ -63,9 +63,11 @@ ignore = ["E501", "UP042"]
 
 [tool.pytest.ini_options]
 testpaths = ["examples"]
-# Coverage gate ratchets from the current ~59%. Raise the floor as coverage
-# improves; never lower it silently.
-addopts = "--cov=iil_adrfw --cov-report=term-missing --cov-fail-under=55"
+# Coverage gate ratchets up as coverage improves; never lower it silently.
+# Raised 55->70 after in-process cli.py tests (issue #20) took actual
+# coverage from ~59% to ~74% — floor kept a few points below actual to
+# absorb pytest-randomly reordering effects.
+addopts = "--cov=iil_adrfw --cov-report=term-missing --cov-fail-under=70"
 
 [tool.coverage.run]
 source = ["iil_adrfw"]
