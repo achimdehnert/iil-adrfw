@@ -561,6 +561,9 @@ def test_should_raise_valueerror_when_set_diff_right_dir_missing(tmp_path, monke
 def test_should_raise_valueerror_when_set_diff_right_dir_does_not_exist(tmp_path, monkeypatch):
     from iil_adrfw.server import DiffRequest, _do_diff
 
+    # Set REPO_ROOT so the (nonexistent) right_dir is INSIDE the sanctioned root
+    # and reaches the "does not exist" check rather than the #22 containment guard.
+    monkeypatch.setenv("IIL_ADRFW_REPO_ROOT", str(tmp_path))
     monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(_copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")))
     req = DiffRequest(mode="set", right_dir=str(tmp_path / "nonexistent-right-side"))
     with pytest.raises(ValueError, match="right_dir does not exist"):
