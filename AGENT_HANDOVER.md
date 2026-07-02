@@ -7,17 +7,20 @@
 
 - Version: **0.6.0** (`pyproject` + CHANGELOG top entry aligned) — **published
   to PyPI** 2026-06-22 via Trusted Publishing (OIDC, `publish.yml`).
-- Tests: green — `make test` → 94 passed (suite in `examples/`, order-stable).
+- Tests: green — `make test` → 122 passed (suite in `examples/`, order-stable).
 - Lint: `ruff check .` clean. Types: `make types` (mypy) — **0 errors, gated
   in CI** (`types` job).
-- Coverage: `make test` enforces `--cov-fail-under=55`; current ~59%.
+- Coverage: `make test` enforces `--cov-fail-under=70`; current ~73%.
 - CI: `ci.yml` (lint + types + full `make test` suite with coverage) +
   `publish.yml` (PyPI via OIDC, `workflow_dispatch`, gated on tests).
 
 ## Recently landed
 
+- Coverage 59→73%, floor 55→70: tests for the previously untested `metrics/`,
+  `index/`, `freshness/` modules (0%→96-97%) + CLI text-output regression
+  tests for the two 2026-07-02 crash fixes.
 - mypy 37→0 + `types` CI gate; fixed two real CLI crashes mypy surfaced
-  (`check`/`validate-cross-repo` text output referenced non-existent fields).
+  (`check`/`validate-cross-repo` text output referenced non-existent fields, #16).
 - 0.6.0 published to PyPI via Trusted Publishing (OIDC) — unblocks the platform
   `adr-nightly-metrics.yml` pipeline (#13, #15).
 - Test isolation fix: per-module autouse fixture isolates `IIL_ADRFW_ADRS_DIR`,
@@ -34,12 +37,10 @@
 
 ## Next priorities
 
-1. Raise the coverage floor (currently 55, actual ~59) as coverage improves;
-   the heaviest gaps are `server.py` (72%), `persistence/` (77%), and the
-   untested `freshness/`, `index/`, `metrics/` modules (0%).
-2. Add CLI text-output tests for `check` and `validate-cross-repo` (the two
-   paths that crashed until 2026-07-02 were uncovered).
-3. Consider tightening mypy (e.g. `disallow_untyped_defs` per module) now that
+1. Keep ratcheting coverage (floor 70, actual ~73): remaining gaps are
+   `server.py` (72% — mostly the later `_do_*` handlers) and
+   `persistence/` (77% — error/edge paths of frontmatter normalization).
+2. Consider tightening mypy (e.g. `disallow_untyped_defs` per module) now that
    the baseline is zero.
 
 ## Pointers

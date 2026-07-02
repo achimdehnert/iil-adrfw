@@ -68,7 +68,7 @@ published PyPI version in sync.
 
 ## Known issues / gotchas
 
-- `make test` enforces `--cov-fail-under=55` (actual ~59%); raise as it improves.
+- `make test` enforces `--cov-fail-under=70` (actual ~73%); raise as it improves.
 - The main tree at `~/github/iil-adrfw` is guarded (ADR-233): start editing
   sessions via `platform/tools/repo-session.sh start <repo> --task <slug>`.
 - See `AGENT_HANDOVER.md` for current state and next priorities.

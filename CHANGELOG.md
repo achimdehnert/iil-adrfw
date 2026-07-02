@@ -14,6 +14,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   non-existent `ConflictOut` fields (`severity`/`description`); now prints
   `conflict_class`/`confidence` and the `claim`. (`--json` was unaffected.)
 
+### Added
+
+- Tests for the previously untested `metrics/`, `index/`, `freshness/` modules
+  (0% → 96-97% module coverage) plus CLI text-output regression tests for the
+  two crash fixes below. Suite 94 → 122 tests; total coverage 59% → ~73%,
+  coverage gate raised `--cov-fail-under` 55 → 70.
+
 ### Changed
 
 - mypy backlog driven 37 → 0; `make types` is now a required CI gate
