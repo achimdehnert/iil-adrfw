@@ -13,14 +13,19 @@ ADRS_DIR = BASE / "_test_adrs_cli"
 SCHEMAS_DIR = BASE.parent / "schemas"
 PROJECT_ROOT = BASE.parent
 
-if ADRS_DIR.exists():
-    shutil.rmtree(ADRS_DIR)
-ADRS_DIR.mkdir(parents=True)
 
-# Stage all canonical fixtures
-for f in BASE.iterdir():
-    if f.name.startswith("ADR-") and f.suffix in (".md", ".yaml"):
-        shutil.copy(f, ADRS_DIR)
+def _stage_fixtures() -> None:
+    """Stage all canonical ADR fixtures (see conftest.py).
+
+    This module drives the CLI as a subprocess with an explicit env dict
+    per call (see `_run` below), so it never had the shared-os.environ
+    collection-order bug the other example modules did. Its directory setup
+    still ran at import time though, so it is staged via the same
+    conftest.py `_prepare_test_dirs` fixture for consistency.
+    """
+    for f in BASE.iterdir():
+        if f.name.startswith("ADR-") and f.suffix in (".md", ".yaml"):
+            shutil.copy(f, ADRS_DIR)
 
 
 def _run(args: list[str], expect_exit: int | None = None) -> tuple[int, str, str]:

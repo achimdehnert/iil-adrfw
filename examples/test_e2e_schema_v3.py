@@ -5,37 +5,9 @@ Each test is isolated: stages exactly the fixture it needs, then loads with
 strict validation (validate=True) and verifies behavior.
 """
 
-import os  # noqa: E402
-import shutil  # noqa: E402
-from pathlib import Path  # noqa: E402
+from pathlib import Path
 
-BASE = Path(__file__).resolve().parent
-ADRS_DIR = BASE / "_test_adrs_v3"
-SCHEMAS_DIR = BASE.parent / "schemas"
-
-if ADRS_DIR.exists():
-    shutil.rmtree(ADRS_DIR)
-ADRS_DIR.mkdir(parents=True)
-
-os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
-os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
-
-import pytest  # noqa: E402
-
-
-@pytest.fixture(autouse=True)
-def _isolate_env(monkeypatch):
-    """Re-point env to THIS module's dirs before each test.
-
-    The module-level os.environ assignments above run once at import and get
-    clobbered by whichever example module is collected last (shared env key),
-    making the active ADRS dir collection-order dependent. The server reads
-    these vars fresh per call, so per-test setenv fully isolates the modules.
-    """
-    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(ADRS_DIR))
-    monkeypatch.setenv("IIL_ADRFW_SCHEMAS_DIR", str(SCHEMAS_DIR))
-
-from iil_adrfw.persistence import (  # noqa: E402
+from iil_adrfw.persistence import (
     ADRLoadError,
     _normalize_status,
     detect_legacy_aliases,
@@ -43,6 +15,14 @@ from iil_adrfw.persistence import (  # noqa: E402
     load_adrs,
     original_frontmatter,
 )
+
+BASE = Path(__file__).resolve().parent
+ADRS_DIR = BASE / "_test_adrs_v3"
+SCHEMAS_DIR = BASE.parent / "schemas"
+
+# No _stage_fixtures() here: each test below stages exactly the fixture it
+# needs via the local _stage()/_cleanup() helpers. conftest.py's
+# _prepare_test_dirs fixture only needs to create the empty ADRS_DIR once.
 
 # Common minimal frontmatter — extended in each test
 _BASE = """---

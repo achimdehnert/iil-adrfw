@@ -1,48 +1,31 @@
 """Tests for adr_diff (temporal and set modes)."""
 
-import os  # noqa: E402
-import shutil  # noqa: E402
-from datetime import UTC, datetime  # noqa: E402
-from pathlib import Path  # noqa: E402
+import shutil
+from datetime import UTC, datetime
+from pathlib import Path
+
+from iil_adrfw.diff import ChangeKind, diff_set, diff_temporal
+from iil_adrfw.persistence import load_adrs
+from iil_adrfw.server import DiffRequest, _do_diff
 
 BASE = Path(__file__).resolve().parent
 ADRS_DIR = BASE / "_test_adrs_diff"
 ADRS_LEFT = BASE / "_test_diff_left"
 ADRS_RIGHT = BASE / "_test_diff_right"
 SCHEMAS_DIR = BASE.parent / "schemas"
-
-for d in (ADRS_DIR, ADRS_LEFT, ADRS_RIGHT):
-    if d.exists():
-        shutil.rmtree(d)
-    d.mkdir(parents=True)
-
-# Stage the canonical ADR-099 (recent decision_date) plus the v11 ADR-188 fixture
-shutil.copy(BASE / "ADR-099-multi-tenancy.md", ADRS_DIR)
-shutil.copy(BASE / "ADR-099-multi-tenancy.rules.yaml", ADRS_DIR)
-shutil.copy(BASE / "ADR-188-unified-vector-store.md", ADRS_DIR)
-shutil.copy(BASE / "ADR-188-unified-vector-store.rules.yaml", ADRS_DIR)
-
-os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
-os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
-
-import pytest  # noqa: E402
+TEST_DIRS = (ADRS_DIR, ADRS_LEFT, ADRS_RIGHT)
 
 
-@pytest.fixture(autouse=True)
-def _isolate_env(monkeypatch):
-    """Re-point env to THIS module's dirs before each test.
+def _stage_fixtures() -> None:
+    """Stage ADR-099 (recent decision_date) + the v1.1 ADR-188 fixture (see conftest.py).
 
-    The module-level os.environ assignments above run once at import and get
-    clobbered by whichever example module is collected last (shared env key),
-    making the active ADRS dir collection-order dependent. The server reads
-    these vars fresh per call, so per-test setenv fully isolates the modules.
+    ADRS_LEFT/ADRS_RIGHT are left empty here; individual tests below stage
+    and clear them as needed.
     """
-    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(ADRS_DIR))
-    monkeypatch.setenv("IIL_ADRFW_SCHEMAS_DIR", str(SCHEMAS_DIR))
-
-from iil_adrfw.diff import ChangeKind, diff_set, diff_temporal  # noqa: E402
-from iil_adrfw.persistence import load_adrs  # noqa: E402
-from iil_adrfw.server import DiffRequest, _do_diff  # noqa: E402
+    shutil.copy(BASE / "ADR-099-multi-tenancy.md", ADRS_DIR)
+    shutil.copy(BASE / "ADR-099-multi-tenancy.rules.yaml", ADRS_DIR)
+    shutil.copy(BASE / "ADR-188-unified-vector-store.md", ADRS_DIR)
+    shutil.copy(BASE / "ADR-188-unified-vector-store.rules.yaml", ADRS_DIR)
 
 
 def test_temporal_pre_decision_excludes_adr():

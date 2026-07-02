@@ -2,53 +2,28 @@
 verify it finds the two drifted models and ignores the compliant one.
 """
 
-import os  # noqa: E402
-import shutil  # noqa: E402
-from pathlib import Path  # noqa: E402
+import shutil
+from datetime import UTC
+from pathlib import Path
 
-# Configure the server to find our test fixtures BEFORE importing it
-BASE = Path(__file__).resolve().parent
-ADRS_DIR = BASE / "_test_adrs"
-SCHEMAS_DIR = BASE.parent / "schemas"
-REPO_ROOT = BASE / "django_polyrepo"
-
-# Stage the example ADR into a fresh adrs/ dir
-if ADRS_DIR.exists():
-    shutil.rmtree(ADRS_DIR)
-ADRS_DIR.mkdir(parents=True)
-shutil.copy(BASE / "ADR-099-multi-tenancy.md", ADRS_DIR)
-shutil.copy(BASE / "ADR-099-multi-tenancy.rules.yaml", ADRS_DIR)
-
-os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
-os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
-os.environ["IIL_ADRFW_REPO_ROOT"] = str(REPO_ROOT)
-
-import pytest  # noqa: E402
-
-
-@pytest.fixture(autouse=True)
-def _isolate_env(monkeypatch):
-    """Re-point env to THIS module's dirs before each test.
-
-    The module-level os.environ assignments above run once at import and get
-    clobbered by whichever example module is collected last (shared env key),
-    making the active ADRS dir collection-order dependent. The server reads
-    these vars fresh per call, so per-test setenv fully isolates the modules.
-    """
-    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(ADRS_DIR))
-    monkeypatch.setenv("IIL_ADRFW_SCHEMAS_DIR", str(SCHEMAS_DIR))
-    monkeypatch.setenv("IIL_ADRFW_REPO_ROOT", str(REPO_ROOT))
-
-# Now import — the env vars take effect on first call
-from datetime import UTC  # noqa: E402
-
-from iil_adrfw.server import (  # noqa: E402
+from iil_adrfw.server import (
     CheckRequest,
     ExplainRequest,
     _do_check,
     _do_explain,
     _do_list_adrs,
 )
+
+BASE = Path(__file__).resolve().parent
+ADRS_DIR = BASE / "_test_adrs"
+SCHEMAS_DIR = BASE.parent / "schemas"
+REPO_ROOT = BASE / "django_polyrepo"
+
+
+def _stage_fixtures() -> None:
+    """Stage the example ADR into the fresh ADRS_DIR (see conftest.py)."""
+    shutil.copy(BASE / "ADR-099-multi-tenancy.md", ADRS_DIR)
+    shutil.copy(BASE / "ADR-099-multi-tenancy.rules.yaml", ADRS_DIR)
 
 
 def test_check_finds_violations():
