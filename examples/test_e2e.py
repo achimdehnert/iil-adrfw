@@ -26,7 +26,7 @@ def _stage_fixtures() -> None:
     shutil.copy(BASE / "ADR-099-multi-tenancy.rules.yaml", ADRS_DIR)
 
 
-def test_check_finds_violations():
+def test_should_find_exactly_the_drifted_models_and_ignore_compliant_one():
     print("=" * 70)
     print("TEST 1: adr_check on synthetic Django app")
     print("=" * 70)
@@ -59,7 +59,7 @@ def test_check_finds_violations():
     print("PASS: found exactly the two drifted models, ignored the compliant one\n")
 
 
-def test_explain_audience_routing():
+def test_should_produce_distinct_explanation_per_audience():
     print("=" * 70)
     print("TEST 2: adr_explain — audience-tailored explanations")
     print("=" * 70)
@@ -77,7 +77,7 @@ def test_explain_audience_routing():
     print("\nPASS: same rule, four distinct audience-appropriate explanations\n")
 
 
-def test_temporal_as_of():
+def test_should_exclude_violations_before_rule_valid_from_date():
     print("=" * 70)
     print("TEST 3: bi-temporal — check 'as_of' before rule existed")
     print("=" * 70)
@@ -96,7 +96,7 @@ def test_temporal_as_of():
     print("PASS: bi-temporal logic correctly excludes pre-rule code\n")
 
 
-def test_list_adrs_resource():
+def test_should_list_loaded_adrs_in_resource():
     print("=" * 70)
     print("TEST 4: adr://list resource")
     print("=" * 70)
@@ -111,10 +111,10 @@ def test_list_adrs_resource():
 
 
 if __name__ == "__main__":
-    test_check_finds_violations()
-    test_explain_audience_routing()
-    test_temporal_as_of()
-    test_list_adrs_resource()
+    test_should_find_exactly_the_drifted_models_and_ignore_compliant_one()
+    test_should_produce_distinct_explanation_per_audience()
+    test_should_exclude_violations_before_rule_valid_from_date()
+    test_should_list_loaded_adrs_in_resource()
     print("=" * 70)
     print("ALL TESTS PASSED")
     print("=" * 70)

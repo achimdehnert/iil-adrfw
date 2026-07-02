@@ -32,7 +32,7 @@ def _stage_fixtures() -> None:
 # ============================================================
 
 
-def test_query_by_domain():
+def test_should_return_relevant_adrs_for_domain_query():
     print("=" * 70)
     print("TEST: adr_query — by domain tag")
     print("=" * 70)
@@ -47,7 +47,7 @@ def test_query_by_domain():
     print("\nPASS: domain query returns relevant ADRs\n")
 
 
-def test_query_by_concept():
+def test_should_return_ranked_relevance_tagged_adrs_for_concept_query():
     print("=" * 70)
     print("TEST: adr_query — by concept (text question)")
     print("=" * 70)
@@ -64,7 +64,7 @@ def test_query_by_concept():
     print("\nPASS: concept query returns ranked, relevance-tagged ADRs\n")
 
 
-def test_query_unknown_topic():
+def test_should_report_no_answer_for_topic_outside_constitution():
     print("=" * 70)
     print("TEST: adr_query — topic not in constitution returns honest 'no answer'")
     print("=" * 70)
@@ -78,7 +78,7 @@ def test_query_unknown_topic():
     print("\nPASS: query honestly reports 'no decision' rather than hallucinating\n")
 
 
-def test_query_by_path():
+def test_should_resolve_applicable_adrs_for_file_path_query():
     print("=" * 70)
     print("TEST: adr_query — by file path resolves applicable ADRs")
     print("=" * 70)
@@ -90,7 +90,7 @@ def test_query_by_path():
     print("\nPASS: path query resolves via scope.include_paths\n")
 
 
-def test_query_returns_open_questions():
+def test_should_surface_relevant_open_questions_in_query():
     print("=" * 70)
     print("TEST: adr_query — surfaces open_questions when relevant")
     print("=" * 70)
@@ -110,7 +110,7 @@ def test_query_returns_open_questions():
 # ============================================================
 
 
-def test_audit_clean_constitution():
+def test_should_complete_audit_cleanly_on_healthy_constitution():
     print("=" * 70)
     print("TEST: adr_audit — clean constitution (ADR-099 + ADR-188 v1.1)")
     print("=" * 70)
@@ -133,7 +133,7 @@ def test_audit_clean_constitution():
     print("\nPASS: clean run completes\n")
 
 
-def test_audit_finds_dangling_supersedes():
+def test_should_find_dangling_supersedes_and_depends_on_references():
     """Inject a broken ADR with dangling supersedes ref, verify audit catches it."""
     print("=" * 70)
     print("TEST: adr_audit — dangling supersedes reference")
@@ -178,7 +178,7 @@ rationale_summary: "Test fixture for dangling refs"
     print("\nPASS: audit catches dangling references with proposed resolutions\n")
 
 
-def test_audit_supersession_back_reference():
+def test_should_flag_missing_supersedes_target_as_finding():
     """ADR-188 supersedes ADR-087, but ADR-087 isn't in the test fixture set.
     The audit should flag this because it's both dangling AND missing back-ref."""
     print("=" * 70)
@@ -195,7 +195,7 @@ def test_audit_supersession_back_reference():
     print("\nPASS: missing supersedes target is flagged\n")
 
 
-def test_audit_staleness_with_explicit_date():
+def test_should_detect_staleness_using_explicit_as_of_date():
     print("=" * 70)
     print("TEST: adr_audit — staleness check with future as_of")
     print("=" * 70)
@@ -210,7 +210,7 @@ def test_audit_staleness_with_explicit_date():
     print("\nPASS: bi-temporal as_of correctly drives staleness detection\n")
 
 
-def test_audit_health_snapshot_quantified():
+def test_should_bound_all_health_snapshot_dimensions_between_zero_and_one():
     print("=" * 70)
     print("TEST: adr_audit — HealthSnapshot is meaningful")
     print("=" * 70)
@@ -234,16 +234,16 @@ def test_audit_health_snapshot_quantified():
 
 
 if __name__ == "__main__":
-    test_query_by_domain()
-    test_query_by_concept()
-    test_query_unknown_topic()
-    test_query_by_path()
-    test_query_returns_open_questions()
-    test_audit_clean_constitution()
-    test_audit_finds_dangling_supersedes()
-    test_audit_supersession_back_reference()
-    test_audit_staleness_with_explicit_date()
-    test_audit_health_snapshot_quantified()
+    test_should_return_relevant_adrs_for_domain_query()
+    test_should_return_ranked_relevance_tagged_adrs_for_concept_query()
+    test_should_report_no_answer_for_topic_outside_constitution()
+    test_should_resolve_applicable_adrs_for_file_path_query()
+    test_should_surface_relevant_open_questions_in_query()
+    test_should_complete_audit_cleanly_on_healthy_constitution()
+    test_should_find_dangling_supersedes_and_depends_on_references()
+    test_should_flag_missing_supersedes_target_as_finding()
+    test_should_detect_staleness_using_explicit_as_of_date()
+    test_should_bound_all_health_snapshot_dimensions_between_zero_and_one()
     print("=" * 70)
     print("ALL adr_query + adr_audit TESTS PASSED")
     print("=" * 70)

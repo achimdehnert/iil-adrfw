@@ -44,7 +44,7 @@ def _validate_frontmatter(fm: dict) -> list[str]:
     return errors
 
 
-def test_basic_proposal_validates():
+def test_should_generate_schema_valid_frontmatter_for_basic_proposal():
     print("=" * 70)
     print("TEST: basic proposal — frontmatter is schema-valid out of the box")
     print("=" * 70)
@@ -79,7 +79,7 @@ def test_basic_proposal_validates():
     print("\nPASS: basic proposal yields schema-valid frontmatter\n")
 
 
-def test_id_allocation():
+def test_should_allocate_next_available_adr_id():
     print("=" * 70)
     print("TEST: id allocation — picks next number after existing ADRs")
     print("=" * 70)
@@ -98,7 +98,7 @@ def test_id_allocation():
     print("\nPASS: next ADR id allocated correctly\n")
 
 
-def test_requested_id_used_when_free():
+def test_should_honor_requested_id_when_free():
     print("=" * 70)
     print("TEST: requested id honored when not in use")
     print("=" * 70)
@@ -116,7 +116,7 @@ def test_requested_id_used_when_free():
     print("\nPASS: requested id honored\n")
 
 
-def test_requested_id_rejected_when_taken():
+def test_should_reject_requested_id_when_already_taken():
     print("=" * 70)
     print("TEST: requested id rejected when already in use")
     print("=" * 70)
@@ -136,7 +136,7 @@ def test_requested_id_rejected_when_taken():
     print("\nPASS: collision detected\n")
 
 
-def test_duplicate_title_warning():
+def test_should_warn_on_near_duplicate_title():
     print("=" * 70)
     print("TEST: very similar title triggers duplicate warning")
     print("=" * 70)
@@ -158,7 +158,7 @@ def test_duplicate_title_warning():
     print("\nPASS: title duplication caught\n")
 
 
-def test_missed_supersession_info():
+def test_should_flag_domain_overlap_without_supersession():
     print("=" * 70)
     print("TEST: heavy domain overlap without supersession is flagged")
     print("=" * 70)
@@ -180,7 +180,7 @@ def test_missed_supersession_info():
     print("\nPASS: missed-supersession indicator works\n")
 
 
-def test_open_question_closure_detection():
+def test_should_detect_open_question_closure_and_mention_it_in_body_prompt():
     print("=" * 70)
     print("TEST: proposal addressing ADR-188 Q-4 is detected")
     print("=" * 70)
@@ -206,7 +206,7 @@ def test_open_question_closure_detection():
     print("\nPASS: open question closure detection works (and informs body prompt)\n")
 
 
-def test_cross_repo_pre_check_blocks():
+def test_should_run_cross_repo_pre_check_without_crashing_on_draft():
     print("=" * 70)
     print("TEST: proposing a BIGINT tenant_id ADR is BLOCKED by cross-repo pre-check")
     print("=" * 70)
@@ -243,7 +243,7 @@ def test_cross_repo_pre_check_blocks():
     print("PASS: cross-repo pre-check runs cleanly on a draft\n")
 
 
-def test_cross_repo_pre_check_with_explicit_claim():
+def test_should_block_publish_when_rationale_states_conflicting_claim():
     """Force a measurable cross-repo conflict by putting the claim into rationale_summary."""
     print("=" * 70)
     print("TEST: cross-repo pre-check with rationale-stated claim")
@@ -277,7 +277,7 @@ def test_cross_repo_pre_check_with_explicit_claim():
     print("\nPASS: explicit rationale claim is cross-checked and blocks publish\n")
 
 
-def test_body_prompt_richness():
+def test_should_structure_body_prompt_with_decision_drivers_and_context():
     print("=" * 70)
     print("TEST: body prompt is structured and references context")
     print("=" * 70)
@@ -307,7 +307,7 @@ def test_body_prompt_richness():
     print("PASS: body prompt is well-structured\n")
 
 
-def test_supersedes_collapses_overlap_warning():
+def test_should_silence_missed_supersession_warning_when_supersedes_given():
     print("=" * 70)
     print("TEST: explicit supersedes silences the missed_supersession warning")
     print("=" * 70)
@@ -327,17 +327,17 @@ def test_supersedes_collapses_overlap_warning():
 
 
 if __name__ == "__main__":
-    test_basic_proposal_validates()
-    test_id_allocation()
-    test_requested_id_used_when_free()
-    test_requested_id_rejected_when_taken()
-    test_duplicate_title_warning()
-    test_missed_supersession_info()
-    test_open_question_closure_detection()
-    test_cross_repo_pre_check_blocks()
-    test_cross_repo_pre_check_with_explicit_claim()
-    test_body_prompt_richness()
-    test_supersedes_collapses_overlap_warning()
+    test_should_generate_schema_valid_frontmatter_for_basic_proposal()
+    test_should_allocate_next_available_adr_id()
+    test_should_honor_requested_id_when_free()
+    test_should_reject_requested_id_when_already_taken()
+    test_should_warn_on_near_duplicate_title()
+    test_should_flag_domain_overlap_without_supersession()
+    test_should_detect_open_question_closure_and_mention_it_in_body_prompt()
+    test_should_run_cross_repo_pre_check_without_crashing_on_draft()
+    test_should_block_publish_when_rationale_states_conflicting_claim()
+    test_should_structure_body_prompt_with_decision_drivers_and_context()
+    test_should_silence_missed_supersession_warning_when_supersedes_given()
     print("=" * 70)
     print("ALL adr_propose TESTS PASSED")
     print("=" * 70)

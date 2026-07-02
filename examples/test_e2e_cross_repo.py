@@ -41,7 +41,7 @@ CONSUMER_REPOS = [
 ]
 
 
-def test_v10_hypothetical_caught_by_validator():
+def test_should_block_publish_when_bigint_claim_conflicts_with_uuid_reality():
     """The whole point: v1.0 claim of BIGINT vs consumer-repo reality of UUID
     must produce a PROVEN/HIGH-confidence conflict that blocks publish."""
     print("=" * 70)
@@ -89,7 +89,7 @@ def test_v10_hypothetical_caught_by_validator():
     print("\nPASS: v1.0 hypothetical correctly flagged BEFORE it could be accepted\n")
 
 
-def test_v11_correct_no_conflicts():
+def test_should_report_no_conflicts_when_claim_matches_consumer_reality():
     """The v1.1 amended ADR matches consumer-repo reality. No conflicts expected."""
     print("=" * 70)
     print("TEST: ADR-188 v1.1 (UUID claim) vs UUID reality — should be CLEAN")
@@ -109,7 +109,7 @@ def test_v11_correct_no_conflicts():
     print("\nPASS: v1.1 (corrected) ADR validates cleanly against consumer-repos\n")
 
 
-def test_unreachable_repo_handled():
+def test_should_report_unreachable_repo_without_crashing():
     """When a consumer-repo path doesn't exist, we should report it but not crash."""
     print("=" * 70)
     print("TEST: missing consumer-repo path is handled gracefully")
@@ -129,7 +129,7 @@ def test_unreachable_repo_handled():
     print("\nPASS: unreachable repos reported, not crashed\n")
 
 
-def test_evidence_quality():
+def test_should_include_file_and_line_evidence_in_conflict_findings():
     """The evidence in a Class-1 finding should include real file paths and line numbers."""
     print("=" * 70)
     print("TEST: evidence quality — actionable for human review")
@@ -153,10 +153,10 @@ def test_evidence_quality():
 
 
 if __name__ == "__main__":
-    test_v10_hypothetical_caught_by_validator()
-    test_v11_correct_no_conflicts()
-    test_unreachable_repo_handled()
-    test_evidence_quality()
+    test_should_block_publish_when_bigint_claim_conflicts_with_uuid_reality()
+    test_should_report_no_conflicts_when_claim_matches_consumer_reality()
+    test_should_report_unreachable_repo_without_crashing()
+    test_should_include_file_and_line_evidence_in_conflict_findings()
     print("=" * 70)
     print("ALL CROSS-REPO TESTS PASSED")
     print("=" * 70)
