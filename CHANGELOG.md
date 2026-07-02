@@ -5,6 +5,18 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Security
+
+- Path containment in the ADR loader (#31). Two traversal channels are now
+  rejected before any out-of-tree read: a `rules_file` frontmatter field that
+  points at an absolute path or `../` escape (previously opened and YAML-parsed
+  arbitrary files), and an ADR markdown file that is a symlink to a target
+  outside the ADR directory (previously ingested the external file's content
+  into the ADR object, surfacing it via `list`/`export`/MCP). `rules_file` must
+  now be a bare filename beside the ADR, and both the ADR file and the resolved
+  rules path are verified to stay within the ADR directory (`resolve()` +
+  `is_relative_to()`); violations raise `ADRLoadError`.
+
 ### Docs
 
 - Fixed README/CLAUDE.md drift (#23): corrected MCP tool count (11→12,

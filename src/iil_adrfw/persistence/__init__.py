@@ -117,6 +117,25 @@ class ADRLoadError(Exception):
     pass
 
 
+def _require_within(candidate: Path, base: Path, what: str) -> Path:
+    """Resolve *candidate* and ensure it stays within *base* (both resolved).
+
+    Guards against path-traversal and symlink-escape: an ADR file or its
+    referenced ``rules_file`` must never cause a read outside the ADR directory
+    tree. Both paths are ``resolve()``d (following symlinks) before comparison,
+    so an absolute path, a ``../`` escape, or a symlink pointing elsewhere are
+    all rejected. Raises ADRLoadError on any escape; returns the resolved path.
+    """
+    base_resolved = base.resolve()
+    candidate_resolved = candidate.resolve()
+    if not candidate_resolved.is_relative_to(base_resolved):
+        raise ADRLoadError(
+            f"{candidate}: refuses to read outside the ADR directory "
+            f"({what} resolves to {candidate_resolved}, outside {base_resolved})"
+        )
+    return candidate_resolved
+
+
 def _normalize_status(raw: Any) -> Any:
     """Status normalization (Schema v3 C.2).
     Handles case ('Accepted'), quotes ('"accepted"'), version suffixes ('accepted (v2)').
@@ -507,6 +526,9 @@ def load_adr(
 
     Schema v3 design: normalization is the default, no `lenient` flag needed.
     """
+    # Reject symlinks that escape the ADR directory (e.g. ADR-x.md -> /etc/secret)
+    # before reading anything off disk.
+    _require_within(md_path, md_path.parent, "ADR file")
     md_text = md_path.read_text(encoding="utf-8")
     m = _FRONTMATTER_RE.match(md_text)
     if not m:
@@ -537,7 +559,16 @@ def load_adr(
     rules: list[Rule] = []
     rules_filename = frontmatter.get("rules_file")
     if rules_filename:
-        rules_path = md_path.parent / rules_filename
+        # rules_file is a free-form frontmatter string; constrain it to a bare
+        # filename beside the ADR (no separators / absolute / '..') and verify
+        # containment after resolution (catches a rules_file that is itself a
+        # symlink pointing outside the directory).
+        if Path(rules_filename).name != rules_filename:
+            raise ADRLoadError(
+                f"{md_path}: rules_file must be a bare filename beside the ADR, "
+                f"got {rules_filename!r}"
+            )
+        rules_path = _require_within(md_path.parent / rules_filename, md_path.parent, "rules_file")
         if rules_path.exists():
             rules = _load_rules(
                 rules_path,
