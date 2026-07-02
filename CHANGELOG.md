@@ -67,6 +67,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - mypy backlog driven 37 → 0; `make types` is now a required CI gate
   (`types` job in `ci.yml`). `types-PyYAML` added to the `dev` extra.
 
+### Tests
+
+- Added dedicated tests for the previously-uncovered `metrics/`, `index/`, and
+  `freshness/` modules (0%/0%/82% → 95–97%), lifting total coverage ~74% → ~82.5%
+  and ratcheting the `--cov-fail-under` gate 70 → 80. (Recovers the module tests
+  from the superseded coverage-raise branch, rebased onto the current suite.)
+
 ## [0.6.0] — 2026-05-30
 
 ### Added — `metrics` CLI command (Schema v4 controlling)
