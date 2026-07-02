@@ -139,7 +139,7 @@ from iil_adrfw.graph import ConstitutionGraph  # noqa: E402
 from iil_adrfw.persistence import load_adrs  # noqa: E402
 
 
-def test_bug2_legacy_hyphens_load():
+def test_should_normalize_legacy_hyphenated_field_names():
     """Bug #2: 'decision-makers', 'superseded-by' must be normalized."""
     print("=" * 70)
     print("TEST: Bug #2 — legacy hyphenated field names load successfully")
@@ -158,7 +158,7 @@ def test_bug2_legacy_hyphens_load():
     print("\nPASS: legacy hyphenated fields normalized correctly\n")
 
 
-def test_bug3_freetext_supersedes():
+def test_should_extract_adr_id_from_freetext_supersedes_string():
     """Bug #3: supersedes given as a plain string with parenthetical comment."""
     print("=" * 70)
     print("TEST: Bug #3 — freetext supersedes string is parsed")
@@ -174,7 +174,7 @@ def test_bug3_freetext_supersedes():
     print("\nPASS: freetext string supersedes correctly extracted\n")
 
 
-def test_bug4_dangling_target_warning_not_error():
+def test_should_flag_dangling_supersedes_target_as_warning_not_error():
     """Bug #4: dangling target should be WARNING (cross-repo possible) not ERROR."""
     print("=" * 70)
     print("TEST: Bug #4 — dangling supersedes is WARNING, not ERROR")
@@ -194,7 +194,7 @@ def test_bug4_dangling_target_warning_not_error():
     print("\nPASS: dangling supersedes correctly flagged as warning\n")
 
 
-def test_bug5_self_reference_detected():
+def test_should_detect_self_reference_in_supersedes_as_warning():
     """Bug #5: ADR that supersedes itself (revision marker) is flagged."""
     print("=" * 70)
     print("TEST: Bug #5 — self-reference in supersedes is detected")
@@ -222,7 +222,7 @@ def test_bug5_self_reference_detected():
     print("\nPASS: self-reference detected with appropriate severity and resolution\n")
 
 
-def test_real_world_combined_constitution():
+def test_should_produce_coherent_audit_across_combined_edge_case_adrs():
     """All four edge-case ADRs + ADR-099 + the proposed-supersession rule
     must produce a coherent audit report."""
     print("=" * 70)
@@ -248,11 +248,11 @@ def test_real_world_combined_constitution():
 
 
 if __name__ == "__main__":
-    test_bug2_legacy_hyphens_load()
-    test_bug3_freetext_supersedes()
-    test_bug4_dangling_target_warning_not_error()
-    test_bug5_self_reference_detected()
-    test_real_world_combined_constitution()
+    test_should_normalize_legacy_hyphenated_field_names()
+    test_should_extract_adr_id_from_freetext_supersedes_string()
+    test_should_flag_dangling_supersedes_target_as_warning_not_error()
+    test_should_detect_self_reference_in_supersedes_as_warning()
+    test_should_produce_coherent_audit_across_combined_edge_case_adrs()
     print("=" * 70)
     print("ALL REGRESSION TESTS PASSED")
     print("=" * 70)

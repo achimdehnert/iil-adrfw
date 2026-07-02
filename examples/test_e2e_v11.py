@@ -47,7 +47,7 @@ from iil_adrfw.domain import Status  # noqa: E402
 from iil_adrfw.persistence import load_adrs  # noqa: E402
 
 
-def test_adr188_v11_loads():
+def test_should_hydrate_all_v11_schema_fields_on_load():
     print("=" * 70)
     print("TEST: ADR-188 v1.1 loads with all extended fields")
     print("=" * 70)
@@ -84,7 +84,7 @@ def test_adr188_v11_loads():
     print("\nPASS: all v1.1 fields hydrated correctly\n")
 
 
-def test_per_repo_status_query():
+def test_should_report_differing_status_across_repos():
     print("=" * 70)
     print("TEST: per-repo status — different states across polyrepo")
     print("=" * 70)
@@ -108,7 +108,7 @@ def test_per_repo_status_query():
     print("\nPASS: polyrepo per-repo states correctly differ\n")
 
 
-def test_decision_drivers_critical():
+def test_should_list_critical_decision_drivers():
     print("=" * 70)
     print("TEST: Critical decision drivers — auditor's question")
     print("=" * 70)
@@ -122,7 +122,7 @@ def test_decision_drivers_critical():
     print("\nPASS\n")
 
 
-def test_open_questions_owned():
+def test_should_assign_owner_to_every_open_question():
     print("=" * 70)
     print("TEST: Open questions — accountability")
     print("=" * 70)
@@ -143,7 +143,7 @@ def test_open_questions_owned():
     print("\nPASS: every open question has accountable owner\n")
 
 
-def test_deprecation_timeline_chain():
+def test_should_expose_ordered_deprecation_timeline_phases():
     print("=" * 70)
     print("TEST: Deprecation timeline — Zero Breaking Changes story")
     print("=" * 70)
@@ -160,7 +160,7 @@ def test_deprecation_timeline_chain():
     print("PASS\n")
 
 
-def test_v11_uuid_rule_is_critical():
+def test_should_mark_uuid_and_dsgvo_rules_as_critical_severity():
     print("=" * 70)
     print("TEST: v1.1 critical UUID rule — DSGVO-grade severity")
     print("=" * 70)
@@ -189,7 +189,7 @@ def test_v11_uuid_rule_is_critical():
     print("\nPASS: v1.1 introduces critical-severity rules with bi-temporal accuracy\n")
 
 
-def test_constitutional_health():
+def test_should_aggregate_health_metrics_across_adrs():
     print("=" * 70)
     print("TEST: Composite constitution view — both ADRs together")
     print("=" * 70)
@@ -216,13 +216,13 @@ def test_constitutional_health():
 
 
 if __name__ == "__main__":
-    test_adr188_v11_loads()
-    test_per_repo_status_query()
-    test_decision_drivers_critical()
-    test_open_questions_owned()
-    test_deprecation_timeline_chain()
-    test_v11_uuid_rule_is_critical()
-    test_constitutional_health()
+    test_should_hydrate_all_v11_schema_fields_on_load()
+    test_should_report_differing_status_across_repos()
+    test_should_list_critical_decision_drivers()
+    test_should_assign_owner_to_every_open_question()
+    test_should_expose_ordered_deprecation_timeline_phases()
+    test_should_mark_uuid_and_dsgvo_rules_as_critical_severity()
+    test_should_aggregate_health_metrics_across_adrs()
     print("=" * 70)
     print("ALL v1.1 TESTS PASSED")
     print("=" * 70)
