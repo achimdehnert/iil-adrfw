@@ -1,10 +1,8 @@
 """FastMCP server exposing iil-adrfw tools.
 
-Two tools implemented for the skeleton:
-- adr_check:   run rules against code paths
-- adr_explain: audience-tailored rule explanation
-
-Six more (query, diff, audit, propose, shadow_pr, narrate) will follow.
+12 tools implemented: adr_check, adr_explain, adr_validate_cross_repo,
+adr_query, adr_audit, adr_propose, adr_diff, adr_narrate, adr_validate,
+adr_staleness, adr_impact, adr_freshness.
 """
 
 import os

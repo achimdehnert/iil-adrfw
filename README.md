@@ -33,7 +33,11 @@ Tested against **156 real platform ADRs** (as of v0.3.1):
 pip install iil-adrfw
 
 # From source with dev dependencies:
+python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
+
+# PEP-668-managed hosts without a venv (fallback only):
+pip install --user --break-system-packages -e ".[dev]"
 ```
 
 ## Usage
@@ -74,15 +78,18 @@ iil-adrfw audit docs/adr/
 
 # Query ADRs by question/domain
 iil-adrfw query docs/adr/ "Which ADR governs deployment?"
+
+# Compute Schema v4 controlling metrics and print a report
+iil-adrfw metrics --adr-dir docs/adr/ --report
 ```
 
-### MCP Server (11 tools)
+### MCP Server (12 tools)
 
 ```bash
 iil-adrfw-mcp  # stdio transport, register in Windsurf mcp_config.json
 ```
 
-Tools: `adr_validate`, `adr_staleness`, `adr_impact`, `adr_check`, `adr_explain`, `adr_query`, `adr_audit`, `adr_validate_cross_repo`, `adr_propose`, `adr_diff`, `adr_narrate`
+Tools: `adr_validate`, `adr_staleness`, `adr_impact`, `adr_check`, `adr_explain`, `adr_query`, `adr_audit`, `adr_validate_cross_repo`, `adr_propose`, `adr_diff`, `adr_narrate`, `adr_freshness`
 
 ## Schema v3 highlights
 
@@ -109,9 +116,7 @@ See [SCHEMA_V3_SPEC.md](SCHEMA_V3_SPEC.md) for full specification.
 ## Running tests
 
 ```bash
-python examples/test_e2e_schema_v3.py   # Schema v3 tests (22 cases)
-python examples/test_e2e.py              # Core tests
-python examples/test_e2e_v11.py          # v1.1 format tests
+make test   # python3 -m pytest examples/  (the full suite lives in examples/)
 ```
 
 ## Project structure
