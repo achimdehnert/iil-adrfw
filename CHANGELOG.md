@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Docs
+
+- Fixed README/CLAUDE.md drift (#23): corrected MCP tool count (11→12,
+  `adr_freshness` was missing from the list), added a `metrics --report`
+  CLI example, replaced ad-hoc test-script invocations with `make test`,
+  documented the venv setup step for PEP-668-managed hosts, added the
+  `index/` module to the CLAUDE.md module map, documented
+  `IIL_ADRFW_SCHEMAS_DIR` with a pointer to `docs/CASCADE_PIPELINE.md` and
+  the CLI exit-code contract, added a gotcha for stale `__version__` after
+  an editable-install version bump, and refreshed the stale top-of-file
+  docstrings in `server.py`/`cli.py` (skeleton wording, "8 MCP tools") to
+  reflect the actual 12 MCP tools / 14 CLI subcommands. No behavior change.
+
 ### Fixed
 
 - **`check` text output crashed on violations**: it referenced non-existent

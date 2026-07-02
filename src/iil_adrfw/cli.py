@@ -1,4 +1,5 @@
-"""Headless CLI — all 8 MCP tools as subcommands.
+"""Headless CLI — 14 subcommands covering the MCP tool surface plus a few
+CLI-only conveniences (`list`, `graph`, `export`).
 
 Exit codes (consistent across subcommands):
   0   Success, no findings/violations
