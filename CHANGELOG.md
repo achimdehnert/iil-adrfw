@@ -7,6 +7,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Security
 
+- MCP path-parameter containment (#22). Client-supplied path parameters on the
+  MCP server (`CheckRequest.paths`, `ValidateRequest.adr_dir`,
+  `DiffRequest.right_dir`) are now validated to resolve within the sanctioned
+  repo root (`_require_within_root`, `resolve()` + `is_relative_to()`); a `../`
+  traversal or absolute escape raises `ValueError` instead of silently reading
+  outside the tree. Env-configured defaults (`_adrs_dir()` when no `adr_dir` is
+  given) remain operator-trusted. The cross-repo (`consumer_repos[].root`) and
+  freshness (`repo_path`) tools deliberately read *other* repos as their core
+  function and are intentionally not constrained; `adr_impact.file_path` is a
+  pattern-matching string, not a filesystem read.
+
 - Advisory supply-chain gate in CI (#32): a new `security` job
   (`.github/workflows/ci.yml`) installs the project against a new
   `constraints.txt` — a `uv`-resolved, project-scoped lock of the runtime
@@ -18,6 +29,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   `starlette`, `python-multipart`, …) previously flagged by an ambient
   `pip-audit` scan; those CVE paths were unreachable anyway given
   iil-adrfw's documented stdio MCP transport.
+
 - Path containment in the ADR loader (#31). Two traversal channels are now
   rejected before any out-of-tree read: a `rules_file` frontmatter field that
   points at an absolute path or `../` escape (previously opened and YAML-parsed

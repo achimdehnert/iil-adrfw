@@ -36,6 +36,27 @@ def _repo_root() -> Path:
     return Path(os.environ.get("IIL_ADRFW_REPO_ROOT", ".")).resolve()
 
 
+def _require_within_root(candidate: str | Path, root: Path | None = None, what: str = "path") -> Path:
+    """Resolve a client-supplied path and ensure it stays within *root*.
+
+    MCP tool parameters (``adr_dir``, ``paths``) are free-form client strings.
+    This rejects ``../`` traversal and absolute escapes outside the sanctioned
+    tree (default: the configured repo root) so a malicious or buggy MCP client
+    cannot make the server read arbitrary files. Relative paths are joined to
+    *root*; the resolved result must stay within *root* or a ValueError is
+    raised. Only client-supplied paths are validated — env-configured defaults
+    (``_adrs_dir()`` / ``_repo_root()``) are operator-trusted.
+    """
+    base = (root or _repo_root()).resolve()
+    resolved = Path(candidate)
+    if not resolved.is_absolute():
+        resolved = base / resolved
+    resolved = resolved.resolve()
+    if not resolved.is_relative_to(base):
+        raise ValueError(f"{what} {str(candidate)!r} resolves outside the sanctioned root {base}")
+    return resolved
+
+
 # --- Caching ---
 # Skeleton: load on every call. Production: hash adrs_dir mtime, cache.
 
@@ -85,9 +106,7 @@ class CheckResponse(BaseModel):
 def _gather_files(paths: list[str], repo_root: Path) -> list[Path]:
     files: list[Path] = []
     for p in paths:
-        path = Path(p)
-        if not path.is_absolute():
-            path = repo_root / path
+        path = _require_within_root(p, root=repo_root, what="check path")
         if path.is_file():
             files.append(path)
         elif path.is_dir():
@@ -721,7 +740,7 @@ def _do_diff(req: DiffRequest) -> DiffResponse:
             raise ValueError("set mode requires right_dir")
         from iil_adrfw.persistence import load_adrs
 
-        right_path = Path(req.right_dir)
+        right_path = _require_within_root(req.right_dir, what="right_dir")
         if not right_path.is_dir():
             raise ValueError(f"right_dir does not exist: {right_path}")
         left = _load_constitution()
@@ -912,7 +931,7 @@ def _do_validate(req: ValidateRequest) -> ValidateResponse:
     from iil_adrfw.persistence import ADRLoadError, load_adr
     from iil_adrfw.schemas import get_schema_dir
 
-    adr_dir = Path(req.adr_dir) if req.adr_dir else _adrs_dir()
+    adr_dir = _require_within_root(req.adr_dir, what="adr_dir") if req.adr_dir else _adrs_dir()
     schema_dir = get_schema_dir()
 
     md_files = sorted(adr_dir.glob("ADR-*.md"))
@@ -970,7 +989,7 @@ def adr_staleness(req: StalenessRequest) -> StalenessResponse:
     from iil_adrfw.persistence import load_adr
     from iil_adrfw.schemas import get_schema_dir
 
-    adr_dir = Path(req.adr_dir) if req.adr_dir else _adrs_dir()
+    adr_dir = _require_within_root(req.adr_dir, what="adr_dir") if req.adr_dir else _adrs_dir()
     schema_dir = get_schema_dir()
     today = date.today()
     threshold = today - timedelta(days=30 * req.months)
