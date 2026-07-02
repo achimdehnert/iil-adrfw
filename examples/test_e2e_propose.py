@@ -1,50 +1,29 @@
 """E2E tests for adr_propose."""
 
-import json  # noqa: E402
-import os  # noqa: E402
-import shutil  # noqa: E402
-from pathlib import Path  # noqa: E402
+import json
+import shutil
+from pathlib import Path
 
-from jsonschema import Draft202012Validator  # noqa: E402
-from referencing import Registry, Resource  # noqa: E402
+from jsonschema import Draft202012Validator
+from referencing import Registry, Resource
+
+from iil_adrfw.server import DecisionDriverIn, ProposeRequest, _do_propose
 
 BASE = Path(__file__).resolve().parent
 ADRS_DIR = BASE / "_test_adrs_propose"
 SCHEMAS_DIR = BASE.parent / "schemas"
 WORKSPACE = BASE / "polyrepo_workspace"
 
-if ADRS_DIR.exists():
-    shutil.rmtree(ADRS_DIR)
-ADRS_DIR.mkdir(parents=True)
-for fn in [
-    "ADR-099-multi-tenancy.md",
-    "ADR-099-multi-tenancy.rules.yaml",
-    "ADR-188-unified-vector-store.md",
-    "ADR-188-unified-vector-store.rules.yaml",
-]:
-    shutil.copy(BASE / fn, ADRS_DIR)
 
-os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
-os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
-os.environ["IIL_ADRFW_REPO_ROOT"] = str(WORKSPACE)
-
-import pytest  # noqa: E402
-
-
-@pytest.fixture(autouse=True)
-def _isolate_env(monkeypatch):
-    """Re-point env to THIS module's dirs before each test.
-
-    The module-level os.environ assignments above run once at import and get
-    clobbered by whichever example module is collected last (shared env key),
-    making the active ADRS dir collection-order dependent. The server reads
-    these vars fresh per call, so per-test setenv fully isolates the modules.
-    """
-    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(ADRS_DIR))
-    monkeypatch.setenv("IIL_ADRFW_SCHEMAS_DIR", str(SCHEMAS_DIR))
-    monkeypatch.setenv("IIL_ADRFW_REPO_ROOT", str(WORKSPACE))
-
-from iil_adrfw.server import DecisionDriverIn, ProposeRequest, _do_propose  # noqa: E402
+def _stage_fixtures() -> None:
+    """Stage canonical fixtures (see conftest.py)."""
+    for fn in [
+        "ADR-099-multi-tenancy.md",
+        "ADR-099-multi-tenancy.rules.yaml",
+        "ADR-188-unified-vector-store.md",
+        "ADR-188-unified-vector-store.rules.yaml",
+    ]:
+        shutil.copy(BASE / fn, ADRS_DIR)
 
 # Build a frontmatter validator for assertion tests
 _registry = Registry()

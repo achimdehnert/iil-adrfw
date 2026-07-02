@@ -7,55 +7,32 @@ Reconstructs the v1.1 scenario:
   and recommend AMENDING the ADR (which is what happened in reality on 2026-05-08)
 """
 
-import os  # noqa: E402
-import shutil  # noqa: E402
-from pathlib import Path  # noqa: E402
+import shutil
+from pathlib import Path
+
+from iil_adrfw.server import (
+    ConsumerRepoSpec,
+    ValidateCrossRepoRequest,
+    _do_validate_cross_repo,
+)
 
 BASE = Path(__file__).resolve().parent
 ADRS_DIR = BASE / "_test_adrs_xrepo"
 SCHEMAS_DIR = BASE.parent / "schemas"
 WORKSPACE = BASE / "polyrepo_workspace"
 
-if ADRS_DIR.exists():
-    shutil.rmtree(ADRS_DIR)
-ADRS_DIR.mkdir(parents=True)
 
-# Stage the hypothetical v1.0 + the corrected v1.1, plus ADR-099 for completeness
-for fn in [
-    "ADR-099-multi-tenancy.md",
-    "ADR-099-multi-tenancy.rules.yaml",
-    "ADR-188-unified-vector-store.md",
-    "ADR-188-unified-vector-store.rules.yaml",
-    "ADR-9088-hypothetical-v10.md",
-    "ADR-9088-hypothetical-v10.rules.yaml",
-]:
-    shutil.copy(BASE / fn, ADRS_DIR)
-
-os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
-os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
-os.environ["IIL_ADRFW_REPO_ROOT"] = str(WORKSPACE)
-
-import pytest  # noqa: E402
-
-
-@pytest.fixture(autouse=True)
-def _isolate_env(monkeypatch):
-    """Re-point env to THIS module's dirs before each test.
-
-    The module-level os.environ assignments above run once at import and get
-    clobbered by whichever example module is collected last (shared env key),
-    making the active ADRS dir collection-order dependent. The server reads
-    these vars fresh per call, so per-test setenv fully isolates the modules.
-    """
-    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(ADRS_DIR))
-    monkeypatch.setenv("IIL_ADRFW_SCHEMAS_DIR", str(SCHEMAS_DIR))
-    monkeypatch.setenv("IIL_ADRFW_REPO_ROOT", str(WORKSPACE))
-
-from iil_adrfw.server import (  # noqa: E402
-    ConsumerRepoSpec,
-    ValidateCrossRepoRequest,
-    _do_validate_cross_repo,
-)
+def _stage_fixtures() -> None:
+    """Stage the hypothetical v1.0 + corrected v1.1, plus ADR-099 (see conftest.py)."""
+    for fn in [
+        "ADR-099-multi-tenancy.md",
+        "ADR-099-multi-tenancy.rules.yaml",
+        "ADR-188-unified-vector-store.md",
+        "ADR-188-unified-vector-store.rules.yaml",
+        "ADR-9088-hypothetical-v10.md",
+        "ADR-9088-hypothetical-v10.rules.yaml",
+    ]:
+        shutil.copy(BASE / fn, ADRS_DIR)
 
 CONSUMER_REPOS = [
     ConsumerRepoSpec(name="meiki-hub", root=str(WORKSPACE / "meiki-hub")),

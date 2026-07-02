@@ -1,44 +1,23 @@
 """Tests for adr_narrate (4 audiences, 3 selection modes, fixed-section structure)."""
 
-import os  # noqa: E402
-import shutil  # noqa: E402
-from pathlib import Path  # noqa: E402
+import shutil
+from pathlib import Path
+
+from iil_adrfw.narrate import Audience, compose_narrative, select_adrs
+from iil_adrfw.persistence import load_adrs
+from iil_adrfw.server import NarrateRequest, _do_narrate
 
 BASE = Path(__file__).resolve().parent
 ADRS_DIR = BASE / "_test_adrs_narrate"
 SCHEMAS_DIR = BASE.parent / "schemas"
 
-if ADRS_DIR.exists():
-    shutil.rmtree(ADRS_DIR)
-ADRS_DIR.mkdir(parents=True)
 
-# Stage canonical fixtures
-shutil.copy(BASE / "ADR-099-multi-tenancy.md", ADRS_DIR)
-shutil.copy(BASE / "ADR-099-multi-tenancy.rules.yaml", ADRS_DIR)
-shutil.copy(BASE / "ADR-188-unified-vector-store.md", ADRS_DIR)
-shutil.copy(BASE / "ADR-188-unified-vector-store.rules.yaml", ADRS_DIR)
-
-os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
-os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
-
-import pytest  # noqa: E402
-
-
-@pytest.fixture(autouse=True)
-def _isolate_env(monkeypatch):
-    """Re-point env to THIS module's dirs before each test.
-
-    The module-level os.environ assignments above run once at import and get
-    clobbered by whichever example module is collected last (shared env key),
-    making the active ADRS dir collection-order dependent. The server reads
-    these vars fresh per call, so per-test setenv fully isolates the modules.
-    """
-    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(ADRS_DIR))
-    monkeypatch.setenv("IIL_ADRFW_SCHEMAS_DIR", str(SCHEMAS_DIR))
-
-from iil_adrfw.narrate import Audience, compose_narrative, select_adrs  # noqa: E402
-from iil_adrfw.persistence import load_adrs  # noqa: E402
-from iil_adrfw.server import NarrateRequest, _do_narrate  # noqa: E402
+def _stage_fixtures() -> None:
+    """Stage canonical fixtures (see conftest.py)."""
+    shutil.copy(BASE / "ADR-099-multi-tenancy.md", ADRS_DIR)
+    shutil.copy(BASE / "ADR-099-multi-tenancy.rules.yaml", ADRS_DIR)
+    shutil.copy(BASE / "ADR-188-unified-vector-store.md", ADRS_DIR)
+    shutil.copy(BASE / "ADR-188-unified-vector-store.rules.yaml", ADRS_DIR)
 
 # Common fixed-section structure expected for every narrative
 EXPECTED_SECTIONS = (

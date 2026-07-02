@@ -10,21 +10,16 @@ Bug references trace back to the adr-doctor review:
 - Bug #5: self-reference in supersedes (revision marker, not real supersession)
 """
 
-import os  # noqa: E402
-import shutil  # noqa: E402
-from pathlib import Path  # noqa: E402
+import shutil
+from pathlib import Path
+
+from iil_adrfw.audit import run_audit
+from iil_adrfw.graph import ConstitutionGraph
+from iil_adrfw.persistence import load_adrs
 
 BASE = Path(__file__).resolve().parent
 ADRS_DIR = BASE / "_test_adrs_regression"
 SCHEMAS_DIR = BASE.parent / "schemas"
-
-if ADRS_DIR.exists():
-    shutil.rmtree(ADRS_DIR)
-ADRS_DIR.mkdir(parents=True)
-
-# Always include the canonical ADR-099 so we have at least one normal ADR
-shutil.copy(BASE / "ADR-099-multi-tenancy.md", ADRS_DIR)
-shutil.copy(BASE / "ADR-099-multi-tenancy.rules.yaml", ADRS_DIR)
 
 
 # --- Test fixtures: deliberately-quirky ADRs reproducing real-world drift ---
@@ -107,36 +102,14 @@ def _stage_fixture(name: str, content: str) -> Path:
     return p
 
 
-# Stage all four
-_stage_fixture("ADR-410-legacy-hyphens.md", _LEGACY_HYPHENS)
-_stage_fixture("ADR-411-freetext-supersedes.md", _FREETEXT_SUPERSEDES)
-_stage_fixture("ADR-420-dangling.md", _DANGLING_TARGET)
-_stage_fixture("ADR-430-self-ref.md", _SELF_REFERENCE)
-
-
-os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
-os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
-
-
-import pytest  # noqa: E402
-
-
-@pytest.fixture(autouse=True)
-def _isolate_env(monkeypatch):
-    """Re-point env to THIS module's dirs before each test.
-
-    The module-level os.environ assignments above run once at import and get
-    clobbered by whichever example module is collected last (shared env key),
-    making the active ADRS dir collection-order dependent. The server reads
-    these vars fresh per call, so per-test setenv fully isolates the modules.
-    """
-    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(ADRS_DIR))
-    monkeypatch.setenv("IIL_ADRFW_SCHEMAS_DIR", str(SCHEMAS_DIR))
-
-
-from iil_adrfw.audit import run_audit  # noqa: E402
-from iil_adrfw.graph import ConstitutionGraph  # noqa: E402
-from iil_adrfw.persistence import load_adrs  # noqa: E402
+def _stage_fixtures() -> None:
+    """Stage ADR-099 (canonical) plus the four quirky regression fixtures (see conftest.py)."""
+    shutil.copy(BASE / "ADR-099-multi-tenancy.md", ADRS_DIR)
+    shutil.copy(BASE / "ADR-099-multi-tenancy.rules.yaml", ADRS_DIR)
+    _stage_fixture("ADR-410-legacy-hyphens.md", _LEGACY_HYPHENS)
+    _stage_fixture("ADR-411-freetext-supersedes.md", _FREETEXT_SUPERSEDES)
+    _stage_fixture("ADR-420-dangling.md", _DANGLING_TARGET)
+    _stage_fixture("ADR-430-self-ref.md", _SELF_REFERENCE)
 
 
 def test_bug2_legacy_hyphens_load():
