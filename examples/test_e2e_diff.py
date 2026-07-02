@@ -1,51 +1,34 @@
 """Tests for adr_diff (temporal and set modes)."""
 
-import os  # noqa: E402
-import shutil  # noqa: E402
-from datetime import UTC, datetime  # noqa: E402
-from pathlib import Path  # noqa: E402
+import shutil
+from datetime import UTC, datetime
+from pathlib import Path
+
+from iil_adrfw.diff import ChangeKind, diff_set, diff_temporal
+from iil_adrfw.persistence import load_adrs
+from iil_adrfw.server import DiffRequest, _do_diff
 
 BASE = Path(__file__).resolve().parent
 ADRS_DIR = BASE / "_test_adrs_diff"
 ADRS_LEFT = BASE / "_test_diff_left"
 ADRS_RIGHT = BASE / "_test_diff_right"
 SCHEMAS_DIR = BASE.parent / "schemas"
-
-for d in (ADRS_DIR, ADRS_LEFT, ADRS_RIGHT):
-    if d.exists():
-        shutil.rmtree(d)
-    d.mkdir(parents=True)
-
-# Stage the canonical ADR-099 (recent decision_date) plus the v11 ADR-188 fixture
-shutil.copy(BASE / "ADR-099-multi-tenancy.md", ADRS_DIR)
-shutil.copy(BASE / "ADR-099-multi-tenancy.rules.yaml", ADRS_DIR)
-shutil.copy(BASE / "ADR-188-unified-vector-store.md", ADRS_DIR)
-shutil.copy(BASE / "ADR-188-unified-vector-store.rules.yaml", ADRS_DIR)
-
-os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
-os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
-
-import pytest  # noqa: E402
+TEST_DIRS = (ADRS_DIR, ADRS_LEFT, ADRS_RIGHT)
 
 
-@pytest.fixture(autouse=True)
-def _isolate_env(monkeypatch):
-    """Re-point env to THIS module's dirs before each test.
+def _stage_fixtures() -> None:
+    """Stage ADR-099 (recent decision_date) + the v1.1 ADR-188 fixture (see conftest.py).
 
-    The module-level os.environ assignments above run once at import and get
-    clobbered by whichever example module is collected last (shared env key),
-    making the active ADRS dir collection-order dependent. The server reads
-    these vars fresh per call, so per-test setenv fully isolates the modules.
+    ADRS_LEFT/ADRS_RIGHT are left empty here; individual tests below stage
+    and clear them as needed.
     """
-    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(ADRS_DIR))
-    monkeypatch.setenv("IIL_ADRFW_SCHEMAS_DIR", str(SCHEMAS_DIR))
-
-from iil_adrfw.diff import ChangeKind, diff_set, diff_temporal  # noqa: E402
-from iil_adrfw.persistence import load_adrs  # noqa: E402
-from iil_adrfw.server import DiffRequest, _do_diff  # noqa: E402
+    shutil.copy(BASE / "ADR-099-multi-tenancy.md", ADRS_DIR)
+    shutil.copy(BASE / "ADR-099-multi-tenancy.rules.yaml", ADRS_DIR)
+    shutil.copy(BASE / "ADR-188-unified-vector-store.md", ADRS_DIR)
+    shutil.copy(BASE / "ADR-188-unified-vector-store.rules.yaml", ADRS_DIR)
 
 
-def test_temporal_pre_decision_excludes_adr():
+def test_should_exclude_all_adrs_before_any_decision_date():
     """Querying before any ADR existed yields zero materialized ADRs."""
     print("=" * 70)
     print("TEST: temporal — querying before all decision_dates → empty left snap")
@@ -65,7 +48,7 @@ def test_temporal_pre_decision_excludes_adr():
     print("  PASS\n")
 
 
-def test_temporal_amendments_visible():
+def test_should_filter_amendments_by_world_time():
     """ADR-188 has v1.1 amendment in 2026-05-08. Querying with right_time after
     that should reveal the amendment in the materialized snapshot."""
     print("=" * 70)
@@ -91,7 +74,7 @@ def test_temporal_amendments_visible():
     print("  PASS: amendments correctly filtered by world_time\n")
 
 
-def test_set_diff_identical_returns_no_changes():
+def test_should_return_no_changes_for_identical_sets():
     """Two identical ADR sets produce no changes."""
     print("=" * 70)
     print("TEST: set — identical sets produce empty diff")
@@ -103,7 +86,7 @@ def test_set_diff_identical_returns_no_changes():
     print("  PASS\n")
 
 
-def test_set_diff_added_removed():
+def test_should_detect_added_adr_between_sets():
     """Stage two different sets — left has ADR-099 only, right has ADR-099 + ADR-188."""
     print("=" * 70)
     print("TEST: set — added/removed ADRs detected")
@@ -135,7 +118,7 @@ def test_set_diff_added_removed():
     print("  PASS\n")
 
 
-def test_set_diff_status_changed():
+def test_should_detect_status_changed_between_sets():
     """Stage two copies of ADR-099 with different status values."""
     print("=" * 70)
     print("TEST: set — status_changed kind detected")
@@ -166,7 +149,7 @@ def test_set_diff_status_changed():
     print("  PASS\n")
 
 
-def test_mcp_tool_temporal():
+def test_should_produce_temporal_diff_via_mcp_tool():
     """Smoke test of the MCP tool entry point — temporal mode."""
     print("=" * 70)
     print("TEST: MCP tool — temporal mode end-to-end")
@@ -188,7 +171,7 @@ def test_mcp_tool_temporal():
     print("  PASS\n")
 
 
-def test_mcp_tool_set():
+def test_should_produce_set_diff_via_mcp_tool():
     """Smoke test of MCP tool — set mode."""
     print("=" * 70)
     print("TEST: MCP tool — set mode end-to-end")
@@ -217,7 +200,7 @@ def test_mcp_tool_set():
     print("  PASS\n")
 
 
-def test_mcp_tool_validation_errors():
+def test_should_raise_value_error_on_invalid_diff_request():
     """Tool raises on invalid input."""
     print("=" * 70)
     print("TEST: MCP tool — validation errors")
@@ -239,14 +222,14 @@ def test_mcp_tool_validation_errors():
 
 
 if __name__ == "__main__":
-    test_temporal_pre_decision_excludes_adr()
-    test_temporal_amendments_visible()
-    test_set_diff_identical_returns_no_changes()
-    test_set_diff_added_removed()
-    test_set_diff_status_changed()
-    test_mcp_tool_temporal()
-    test_mcp_tool_set()
-    test_mcp_tool_validation_errors()
+    test_should_exclude_all_adrs_before_any_decision_date()
+    test_should_filter_amendments_by_world_time()
+    test_should_return_no_changes_for_identical_sets()
+    test_should_detect_added_adr_between_sets()
+    test_should_detect_status_changed_between_sets()
+    test_should_produce_temporal_diff_via_mcp_tool()
+    test_should_produce_set_diff_via_mcp_tool()
+    test_should_raise_value_error_on_invalid_diff_request()
     print("=" * 70)
     print("ALL adr_diff TESTS PASSED")
     print("=" * 70)

@@ -39,7 +39,7 @@ FIXTURES_DIR = Path(__file__).resolve().parent
 SCHEMA_DIR = get_schema_dir()
 
 
-def _stage_fixtures(dest: Path, *names: str) -> Path:
+def _copy_adr_fixtures_into(dest: Path, *names: str) -> Path:
     """Copy canonical ADR fixtures (+ sibling .rules.yaml) into dest."""
     dest.mkdir(parents=True, exist_ok=True)
     for name in names:
@@ -58,7 +58,7 @@ def _ns(**kwargs) -> argparse.Namespace:
 
 
 def test_should_report_all_adrs_valid_in_text_mode(tmp_path, capsys):
-    adr_dir = _stage_fixtures(tmp_path, "ADR-099-multi-tenancy")
+    adr_dir = _copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")
     args = _ns(adr_dir=str(adr_dir), schema_dir=None, json=False)
 
     assert cli._cmd_validate(args) == 0
@@ -68,7 +68,7 @@ def test_should_report_all_adrs_valid_in_text_mode(tmp_path, capsys):
 
 
 def test_should_emit_valid_json_with_percent_field(tmp_path, capsys):
-    adr_dir = _stage_fixtures(tmp_path, "ADR-099-multi-tenancy")
+    adr_dir = _copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")
     args = _ns(adr_dir=str(adr_dir), schema_dir=str(SCHEMA_DIR), json=True)
 
     assert cli._cmd_validate(args) == 0
@@ -112,7 +112,7 @@ def test_should_list_failure_when_frontmatter_is_missing(tmp_path, capsys):
 
 def test_should_flag_broken_depends_on_reference(tmp_path, capsys):
     # ADR-099 depends_on ADR-087, which is not part of this fixture set.
-    adr_dir = _stage_fixtures(tmp_path, "ADR-099-multi-tenancy")
+    adr_dir = _copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")
     args = _ns(adr_dir=str(adr_dir), schema_dir=None, months=6, json=False)
 
     rc = cli._cmd_staleness(args)
@@ -124,7 +124,7 @@ def test_should_flag_broken_depends_on_reference(tmp_path, capsys):
 
 
 def test_should_emit_staleness_findings_as_json(tmp_path, capsys):
-    adr_dir = _stage_fixtures(tmp_path, "ADR-099-multi-tenancy")
+    adr_dir = _copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")
     args = _ns(adr_dir=str(adr_dir), schema_dir=None, months=6, json=True)
 
     cli._cmd_staleness(args)
@@ -135,7 +135,7 @@ def test_should_emit_staleness_findings_as_json(tmp_path, capsys):
 
 def test_should_exit_1_when_superseded_by_reference_is_broken(tmp_path, capsys):
     adr_dir = tmp_path / "adrs"
-    _stage_fixtures(adr_dir, "ADR-099-multi-tenancy")
+    _copy_adr_fixtures_into(adr_dir, "ADR-099-multi-tenancy")
     text = (adr_dir / "ADR-099-multi-tenancy.md").read_text(encoding="utf-8")
     text = text.replace("superseded_by: []", "superseded_by:\n  - ADR-999-does-not-exist")
     (adr_dir / "ADR-099-multi-tenancy.md").write_text(text, encoding="utf-8")
@@ -157,7 +157,7 @@ def test_should_exit_2_when_staleness_adr_dir_missing(tmp_path, capsys):
 
 
 def test_should_print_text_graph_with_depends_on_edge(tmp_path, capsys):
-    adr_dir = _stage_fixtures(tmp_path, "ADR-099-multi-tenancy")
+    adr_dir = _copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")
     args = _ns(adr_dir=str(adr_dir), schema_dir=None, dot=False, json=False)
 
     assert cli._cmd_graph(args) == 0
@@ -168,7 +168,7 @@ def test_should_print_text_graph_with_depends_on_edge(tmp_path, capsys):
 
 
 def test_should_emit_dot_format_when_dot_flag_set(tmp_path, capsys):
-    adr_dir = _stage_fixtures(tmp_path, "ADR-099-multi-tenancy")
+    adr_dir = _copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")
     args = _ns(adr_dir=str(adr_dir), schema_dir=None, dot=True, json=False)
 
     assert cli._cmd_graph(args) == 0
@@ -178,7 +178,7 @@ def test_should_emit_dot_format_when_dot_flag_set(tmp_path, capsys):
 
 
 def test_should_emit_graph_as_json_with_node_and_edge_counts(tmp_path, capsys):
-    adr_dir = _stage_fixtures(tmp_path, "ADR-099-multi-tenancy")
+    adr_dir = _copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")
     args = _ns(adr_dir=str(adr_dir), schema_dir=None, dot=False, json=True)
 
     cli._cmd_graph(args)
@@ -192,7 +192,7 @@ def test_should_emit_graph_as_json_with_node_and_edge_counts(tmp_path, capsys):
 
 
 def test_should_print_markdown_registry_to_stdout(tmp_path, capsys):
-    adr_dir = _stage_fixtures(tmp_path, "ADR-099-multi-tenancy")
+    adr_dir = _copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")
     args = _ns(adr_dir=str(adr_dir), schema_dir=None, output=None)
 
     assert cli._cmd_export(args) == 0
@@ -203,7 +203,7 @@ def test_should_print_markdown_registry_to_stdout(tmp_path, capsys):
 
 
 def test_should_write_markdown_registry_to_output_file(tmp_path, capsys):
-    adr_dir = _stage_fixtures(tmp_path, "ADR-099-multi-tenancy")
+    adr_dir = _copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")
     out_file = tmp_path / "registry.md"
     args = _ns(adr_dir=str(adr_dir), schema_dir=None, output=str(out_file))
 
@@ -225,7 +225,7 @@ def test_should_exit_2_when_export_adr_dir_missing(tmp_path, capsys):
 
 
 def test_should_print_controlling_report_without_write_flag(tmp_path, capsys):
-    adr_dir = _stage_fixtures(tmp_path, "ADR-099-multi-tenancy")
+    adr_dir = _copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")
     args = _ns(adr_dir=str(adr_dir), schema_dir=None, write=False, report=False, json=False)
 
     assert cli._cmd_metrics(args) == 0
@@ -234,7 +234,7 @@ def test_should_print_controlling_report_without_write_flag(tmp_path, capsys):
 
 
 def test_should_write_metrics_into_frontmatter_when_write_flag_set(tmp_path, capsys):
-    adr_dir = _stage_fixtures(tmp_path, "ADR-099-multi-tenancy")
+    adr_dir = _copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")
     args = _ns(adr_dir=str(adr_dir), schema_dir=None, write=True, report=False, json=False)
 
     assert cli._cmd_metrics(args) == 0
@@ -245,7 +245,7 @@ def test_should_write_metrics_into_frontmatter_when_write_flag_set(tmp_path, cap
 
 
 def test_should_emit_metrics_as_json(tmp_path, capsys):
-    adr_dir = _stage_fixtures(tmp_path, "ADR-099-multi-tenancy")
+    adr_dir = _copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")
     args = _ns(adr_dir=str(adr_dir), schema_dir=None, write=False, report=False, json=True)
 
     cli._cmd_metrics(args)
@@ -269,7 +269,7 @@ def test_should_exit_2_when_metrics_adr_dir_missing(tmp_path, capsys):
 
 
 def test_should_print_adr_count_and_domains_in_text_mode(tmp_path, monkeypatch, capsys):
-    adr_dir = _stage_fixtures(tmp_path, "ADR-099-multi-tenancy")
+    adr_dir = _copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")
     monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(adr_dir))
     args = _ns(json=False)
 
@@ -281,7 +281,7 @@ def test_should_print_adr_count_and_domains_in_text_mode(tmp_path, monkeypatch, 
 
 
 def test_should_print_adr_list_as_parseable_json(tmp_path, monkeypatch, capsys):
-    adr_dir = _stage_fixtures(tmp_path, "ADR-099-multi-tenancy")
+    adr_dir = _copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")
     monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(adr_dir))
     args = _ns(json=True)
 
@@ -518,7 +518,7 @@ def test_should_raise_adrloaderror_when_frontmatter_fails_schema_validation(tmp_
 
 
 def test_should_raise_adrloaderror_when_rules_file_adr_id_mismatches_parent(tmp_path):
-    adr_dir = _stage_fixtures(tmp_path, "ADR-099-multi-tenancy")
+    adr_dir = _copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")
     rules_path = adr_dir / "ADR-099-multi-tenancy.rules.yaml"
     text = rules_path.read_text(encoding="utf-8")
     assert "adr_id: ADR-099" in text
@@ -550,7 +550,7 @@ def test_should_raise_valueerror_when_temporal_diff_missing_times():
 def test_should_raise_valueerror_when_set_diff_right_dir_missing(tmp_path, monkeypatch):
     from iil_adrfw.server import DiffRequest, _do_diff
 
-    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(_stage_fixtures(tmp_path, "ADR-099-multi-tenancy")))
+    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(_copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")))
     req = DiffRequest.model_construct(
         mode="set", right_dir=None, left_time=None, right_time=None, left_label="left", right_label="right"
     )
@@ -561,7 +561,7 @@ def test_should_raise_valueerror_when_set_diff_right_dir_missing(tmp_path, monke
 def test_should_raise_valueerror_when_set_diff_right_dir_does_not_exist(tmp_path, monkeypatch):
     from iil_adrfw.server import DiffRequest, _do_diff
 
-    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(_stage_fixtures(tmp_path, "ADR-099-multi-tenancy")))
+    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(_copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")))
     req = DiffRequest(mode="set", right_dir=str(tmp_path / "nonexistent-right-side"))
     with pytest.raises(ValueError, match="right_dir does not exist"):
         _do_diff(req)
@@ -574,7 +574,7 @@ def test_should_raise_valueerror_when_set_diff_right_dir_does_not_exist(tmp_path
 def test_should_raise_valueerror_when_explain_rule_id_unknown(tmp_path, monkeypatch):
     from iil_adrfw.server import ExplainRequest, _do_explain
 
-    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(_stage_fixtures(tmp_path, "ADR-099-multi-tenancy")))
+    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(_copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")))
     req = ExplainRequest(rule_id="ADR-999/no-such-rule", audience="senior")
     with pytest.raises(ValueError, match="not found in constitution"):
         _do_explain(req)
@@ -583,7 +583,7 @@ def test_should_raise_valueerror_when_explain_rule_id_unknown(tmp_path, monkeypa
 def test_should_raise_valueerror_when_validate_cross_repo_adr_id_is_invalid(tmp_path, monkeypatch):
     from iil_adrfw.server import ValidateCrossRepoRequest, _do_validate_cross_repo
 
-    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(_stage_fixtures(tmp_path, "ADR-099-multi-tenancy")))
+    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(_copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")))
     req = ValidateCrossRepoRequest(adr_id="ADR-9999-invalid", consumer_repos=[])
     with pytest.raises(ValueError, match="not found in constitution"):
         _do_validate_cross_repo(req)
@@ -592,7 +592,7 @@ def test_should_raise_valueerror_when_validate_cross_repo_adr_id_is_invalid(tmp_
 def test_should_raise_valueerror_when_query_has_no_selectors(tmp_path, monkeypatch):
     from iil_adrfw.server import QueryRequest, _do_query
 
-    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(_stage_fixtures(tmp_path, "ADR-099-multi-tenancy")))
+    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(_copy_adr_fixtures_into(tmp_path, "ADR-099-multi-tenancy")))
     req = QueryRequest(question=None, domain=None, path=None)
     with pytest.raises(ValueError, match="At least one of question/domain/path must be provided"):
         _do_query(req)

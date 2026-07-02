@@ -7,55 +7,32 @@ Reconstructs the v1.1 scenario:
   and recommend AMENDING the ADR (which is what happened in reality on 2026-05-08)
 """
 
-import os  # noqa: E402
-import shutil  # noqa: E402
-from pathlib import Path  # noqa: E402
+import shutil
+from pathlib import Path
+
+from iil_adrfw.server import (
+    ConsumerRepoSpec,
+    ValidateCrossRepoRequest,
+    _do_validate_cross_repo,
+)
 
 BASE = Path(__file__).resolve().parent
 ADRS_DIR = BASE / "_test_adrs_xrepo"
 SCHEMAS_DIR = BASE.parent / "schemas"
 WORKSPACE = BASE / "polyrepo_workspace"
 
-if ADRS_DIR.exists():
-    shutil.rmtree(ADRS_DIR)
-ADRS_DIR.mkdir(parents=True)
 
-# Stage the hypothetical v1.0 + the corrected v1.1, plus ADR-099 for completeness
-for fn in [
-    "ADR-099-multi-tenancy.md",
-    "ADR-099-multi-tenancy.rules.yaml",
-    "ADR-188-unified-vector-store.md",
-    "ADR-188-unified-vector-store.rules.yaml",
-    "ADR-9088-hypothetical-v10.md",
-    "ADR-9088-hypothetical-v10.rules.yaml",
-]:
-    shutil.copy(BASE / fn, ADRS_DIR)
-
-os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
-os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
-os.environ["IIL_ADRFW_REPO_ROOT"] = str(WORKSPACE)
-
-import pytest  # noqa: E402
-
-
-@pytest.fixture(autouse=True)
-def _isolate_env(monkeypatch):
-    """Re-point env to THIS module's dirs before each test.
-
-    The module-level os.environ assignments above run once at import and get
-    clobbered by whichever example module is collected last (shared env key),
-    making the active ADRS dir collection-order dependent. The server reads
-    these vars fresh per call, so per-test setenv fully isolates the modules.
-    """
-    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(ADRS_DIR))
-    monkeypatch.setenv("IIL_ADRFW_SCHEMAS_DIR", str(SCHEMAS_DIR))
-    monkeypatch.setenv("IIL_ADRFW_REPO_ROOT", str(WORKSPACE))
-
-from iil_adrfw.server import (  # noqa: E402
-    ConsumerRepoSpec,
-    ValidateCrossRepoRequest,
-    _do_validate_cross_repo,
-)
+def _stage_fixtures() -> None:
+    """Stage the hypothetical v1.0 + corrected v1.1, plus ADR-099 (see conftest.py)."""
+    for fn in [
+        "ADR-099-multi-tenancy.md",
+        "ADR-099-multi-tenancy.rules.yaml",
+        "ADR-188-unified-vector-store.md",
+        "ADR-188-unified-vector-store.rules.yaml",
+        "ADR-9088-hypothetical-v10.md",
+        "ADR-9088-hypothetical-v10.rules.yaml",
+    ]:
+        shutil.copy(BASE / fn, ADRS_DIR)
 
 CONSUMER_REPOS = [
     ConsumerRepoSpec(name="meiki-hub", root=str(WORKSPACE / "meiki-hub")),
@@ -64,7 +41,7 @@ CONSUMER_REPOS = [
 ]
 
 
-def test_v10_hypothetical_caught_by_validator():
+def test_should_block_publish_when_bigint_claim_conflicts_with_uuid_reality():
     """The whole point: v1.0 claim of BIGINT vs consumer-repo reality of UUID
     must produce a PROVEN/HIGH-confidence conflict that blocks publish."""
     print("=" * 70)
@@ -112,7 +89,7 @@ def test_v10_hypothetical_caught_by_validator():
     print("\nPASS: v1.0 hypothetical correctly flagged BEFORE it could be accepted\n")
 
 
-def test_v11_correct_no_conflicts():
+def test_should_report_no_conflicts_when_claim_matches_consumer_reality():
     """The v1.1 amended ADR matches consumer-repo reality. No conflicts expected."""
     print("=" * 70)
     print("TEST: ADR-188 v1.1 (UUID claim) vs UUID reality — should be CLEAN")
@@ -132,7 +109,7 @@ def test_v11_correct_no_conflicts():
     print("\nPASS: v1.1 (corrected) ADR validates cleanly against consumer-repos\n")
 
 
-def test_unreachable_repo_handled():
+def test_should_report_unreachable_repo_without_crashing():
     """When a consumer-repo path doesn't exist, we should report it but not crash."""
     print("=" * 70)
     print("TEST: missing consumer-repo path is handled gracefully")
@@ -152,7 +129,7 @@ def test_unreachable_repo_handled():
     print("\nPASS: unreachable repos reported, not crashed\n")
 
 
-def test_evidence_quality():
+def test_should_include_file_and_line_evidence_in_conflict_findings():
     """The evidence in a Class-1 finding should include real file paths and line numbers."""
     print("=" * 70)
     print("TEST: evidence quality — actionable for human review")
@@ -176,10 +153,10 @@ def test_evidence_quality():
 
 
 if __name__ == "__main__":
-    test_v10_hypothetical_caught_by_validator()
-    test_v11_correct_no_conflicts()
-    test_unreachable_repo_handled()
-    test_evidence_quality()
+    test_should_block_publish_when_bigint_claim_conflicts_with_uuid_reality()
+    test_should_report_no_conflicts_when_claim_matches_consumer_reality()
+    test_should_report_unreachable_repo_without_crashing()
+    test_should_include_file_and_line_evidence_in_conflict_findings()
     print("=" * 70)
     print("ALL CROSS-REPO TESTS PASSED")
     print("=" * 70)

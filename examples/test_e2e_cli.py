@@ -13,14 +13,19 @@ ADRS_DIR = BASE / "_test_adrs_cli"
 SCHEMAS_DIR = BASE.parent / "schemas"
 PROJECT_ROOT = BASE.parent
 
-if ADRS_DIR.exists():
-    shutil.rmtree(ADRS_DIR)
-ADRS_DIR.mkdir(parents=True)
 
-# Stage all canonical fixtures
-for f in BASE.iterdir():
-    if f.name.startswith("ADR-") and f.suffix in (".md", ".yaml"):
-        shutil.copy(f, ADRS_DIR)
+def _stage_fixtures() -> None:
+    """Stage all canonical ADR fixtures (see conftest.py).
+
+    This module drives the CLI as a subprocess with an explicit env dict
+    per call (see `_run` below), so it never had the shared-os.environ
+    collection-order bug the other example modules did. Its directory setup
+    still ran at import time though, so it is staged via the same
+    conftest.py `_prepare_test_dirs` fixture for consistency.
+    """
+    for f in BASE.iterdir():
+        if f.name.startswith("ADR-") and f.suffix in (".md", ".yaml"):
+            shutil.copy(f, ADRS_DIR)
 
 
 def _run(args: list[str], expect_exit: int | None = None) -> tuple[int, str, str]:
@@ -44,7 +49,7 @@ def _run(args: list[str], expect_exit: int | None = None) -> tuple[int, str, str
     return res.returncode, res.stdout, res.stderr
 
 
-def test_help_works():
+def test_should_list_all_commands_in_help():
     print("=" * 70)
     print("TEST: --help shows all 9 commands")
     print("=" * 70)
@@ -54,7 +59,7 @@ def test_help_works():
     print("  PASS: all 9 commands listed in --help\n")
 
 
-def test_list_text_and_json():
+def test_should_render_list_output_as_text_and_json():
     print("=" * 70)
     print("TEST: list — text and JSON outputs both work")
     print("=" * 70)
@@ -71,7 +76,7 @@ def test_list_text_and_json():
     print("  PASS\n")
 
 
-def test_audit_exit_code_signals_findings():
+def test_should_exit_nonzero_when_audit_has_findings():
     print("=" * 70)
     print("TEST: audit exits 1 when there are findings")
     print("=" * 70)
@@ -88,7 +93,7 @@ def test_audit_exit_code_signals_findings():
     print("  PASS\n")
 
 
-def test_audit_json_parseable_and_has_health():
+def test_should_produce_parseable_json_with_health_structure_for_audit():
     print("=" * 70)
     print("TEST: audit --json produces parseable output with health structure")
     print("=" * 70)
@@ -104,7 +109,7 @@ def test_audit_json_parseable_and_has_health():
     print("  PASS\n")
 
 
-def test_query_filters():
+def test_should_filter_query_results_by_domain_and_output_json():
     print("=" * 70)
     print("TEST: query filters by domain and produces JSON")
     print("=" * 70)
@@ -119,7 +124,7 @@ def test_query_filters():
     print("  PASS: domain filter works\n")
 
 
-def test_explain_command():
+def test_should_print_severity_and_explanation_for_rule():
     print("=" * 70)
     print("TEST: explain a concrete rule")
     print("=" * 70)
@@ -138,7 +143,7 @@ def test_explain_command():
     print("  PASS: explain produced output\n")
 
 
-def test_diff_temporal():
+def test_should_run_temporal_diff_via_cli():
     print("=" * 70)
     print("TEST: diff temporal mode")
     print("=" * 70)
@@ -160,7 +165,7 @@ def test_diff_temporal():
     print("  PASS\n")
 
 
-def test_narrate_emits_markdown_by_default():
+def test_should_emit_markdown_by_default_without_json_flag():
     print("=" * 70)
     print("TEST: narrate writes markdown to stdout (default), no --json needed")
     print("=" * 70)
@@ -182,7 +187,7 @@ def test_narrate_emits_markdown_by_default():
     print("  PASS: narrate emits markdown directly\n")
 
 
-def test_narrate_validation_error_exit_2():
+def test_should_exit_2_when_narrate_selectors_missing():
     print("=" * 70)
     print("TEST: narrate without selectors exits 2 (config error)")
     print("=" * 70)
@@ -193,7 +198,7 @@ def test_narrate_validation_error_exit_2():
     print("  PASS\n")
 
 
-def test_propose_outputs_frontmatter():
+def test_should_output_frontmatter_and_body_prompt_for_propose():
     print("=" * 70)
     print("TEST: propose generates frontmatter + body prompt")
     print("=" * 70)
@@ -219,16 +224,16 @@ def test_propose_outputs_frontmatter():
 
 
 if __name__ == "__main__":
-    test_help_works()
-    test_list_text_and_json()
-    test_audit_exit_code_signals_findings()
-    test_audit_json_parseable_and_has_health()
-    test_query_filters()
-    test_explain_command()
-    test_diff_temporal()
-    test_narrate_emits_markdown_by_default()
-    test_narrate_validation_error_exit_2()
-    test_propose_outputs_frontmatter()
+    test_should_list_all_commands_in_help()
+    test_should_render_list_output_as_text_and_json()
+    test_should_exit_nonzero_when_audit_has_findings()
+    test_should_produce_parseable_json_with_health_structure_for_audit()
+    test_should_filter_query_results_by_domain_and_output_json()
+    test_should_print_severity_and_explanation_for_rule()
+    test_should_run_temporal_diff_via_cli()
+    test_should_emit_markdown_by_default_without_json_flag()
+    test_should_exit_2_when_narrate_selectors_missing()
+    test_should_output_frontmatter_and_body_prompt_for_propose()
     print("=" * 70)
     print("ALL CLI TESTS PASSED")
     print("=" * 70)

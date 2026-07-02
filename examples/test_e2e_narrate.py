@@ -1,44 +1,23 @@
 """Tests for adr_narrate (4 audiences, 3 selection modes, fixed-section structure)."""
 
-import os  # noqa: E402
-import shutil  # noqa: E402
-from pathlib import Path  # noqa: E402
+import shutil
+from pathlib import Path
+
+from iil_adrfw.narrate import Audience, compose_narrative, select_adrs
+from iil_adrfw.persistence import load_adrs
+from iil_adrfw.server import NarrateRequest, _do_narrate
 
 BASE = Path(__file__).resolve().parent
 ADRS_DIR = BASE / "_test_adrs_narrate"
 SCHEMAS_DIR = BASE.parent / "schemas"
 
-if ADRS_DIR.exists():
-    shutil.rmtree(ADRS_DIR)
-ADRS_DIR.mkdir(parents=True)
 
-# Stage canonical fixtures
-shutil.copy(BASE / "ADR-099-multi-tenancy.md", ADRS_DIR)
-shutil.copy(BASE / "ADR-099-multi-tenancy.rules.yaml", ADRS_DIR)
-shutil.copy(BASE / "ADR-188-unified-vector-store.md", ADRS_DIR)
-shutil.copy(BASE / "ADR-188-unified-vector-store.rules.yaml", ADRS_DIR)
-
-os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
-os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
-
-import pytest  # noqa: E402
-
-
-@pytest.fixture(autouse=True)
-def _isolate_env(monkeypatch):
-    """Re-point env to THIS module's dirs before each test.
-
-    The module-level os.environ assignments above run once at import and get
-    clobbered by whichever example module is collected last (shared env key),
-    making the active ADRS dir collection-order dependent. The server reads
-    these vars fresh per call, so per-test setenv fully isolates the modules.
-    """
-    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(ADRS_DIR))
-    monkeypatch.setenv("IIL_ADRFW_SCHEMAS_DIR", str(SCHEMAS_DIR))
-
-from iil_adrfw.narrate import Audience, compose_narrative, select_adrs  # noqa: E402
-from iil_adrfw.persistence import load_adrs  # noqa: E402
-from iil_adrfw.server import NarrateRequest, _do_narrate  # noqa: E402
+def _stage_fixtures() -> None:
+    """Stage canonical fixtures (see conftest.py)."""
+    shutil.copy(BASE / "ADR-099-multi-tenancy.md", ADRS_DIR)
+    shutil.copy(BASE / "ADR-099-multi-tenancy.rules.yaml", ADRS_DIR)
+    shutil.copy(BASE / "ADR-188-unified-vector-store.md", ADRS_DIR)
+    shutil.copy(BASE / "ADR-188-unified-vector-store.rules.yaml", ADRS_DIR)
 
 # Common fixed-section structure expected for every narrative
 EXPECTED_SECTIONS = (
@@ -54,7 +33,7 @@ def _all_adrs():
     return load_adrs(ADRS_DIR, SCHEMAS_DIR)
 
 
-def test_all_audiences_emit_same_section_structure():
+def test_should_emit_same_five_sections_for_every_audience():
     """Every audience must produce exactly the same 5 sections in the same order."""
     print("=" * 70)
     print("TEST: all 4 audiences emit identical fixed section structure")
@@ -68,7 +47,7 @@ def test_all_audiences_emit_same_section_structure():
     print("  PASS: all 4 audiences have the same 5 sections in the same order\n")
 
 
-def test_audience_specific_intro_text():
+def test_should_produce_distinct_intro_per_audience():
     """Each audience produces a distinct intro framing."""
     print("=" * 70)
     print("TEST: audience-specific intro framing")
@@ -87,7 +66,7 @@ def test_audience_specific_intro_text():
     print("  PASS: 4 distinct, non-empty intro texts\n")
 
 
-def test_empty_sections_show_none_marker():
+def test_should_render_none_marker_for_empty_sections():
     """When there's nothing to put in a section, body is '(none)' — not omitted."""
     print("=" * 70)
     print("TEST: empty sections explicitly show '(none)'")
@@ -104,7 +83,7 @@ def test_empty_sections_show_none_marker():
     print("  PASS: empty sections marked with '(none)'\n")
 
 
-def test_selection_by_domain():
+def test_should_select_adrs_matching_domain():
     """select_adrs filters by a domain tag."""
     print("=" * 70)
     print("TEST: selection by domain tag")
@@ -124,7 +103,7 @@ def test_selection_by_domain():
     print("  PASS: domain selection works\n")
 
 
-def test_selection_by_id_set():
+def test_should_select_adrs_matching_id_set():
     """select_adrs filters by explicit ID list."""
     print("=" * 70)
     print("TEST: selection by id_set")
@@ -137,7 +116,7 @@ def test_selection_by_id_set():
     print("  PASS: id_set selection works\n")
 
 
-def test_selection_requires_at_least_one_selector():
+def test_should_raise_value_error_when_no_selector_given():
     """Calling select_adrs with no selectors raises ValueError."""
     print("=" * 70)
     print("TEST: select_adrs without any selector raises")
@@ -150,7 +129,7 @@ def test_selection_requires_at_least_one_selector():
     print()
 
 
-def test_selection_combined_and():
+def test_should_and_combine_domain_and_id_set_selectors():
     """domain + id_set AND-combine."""
     print("=" * 70)
     print("TEST: domain + id_set selectors AND-combine")
@@ -168,7 +147,7 @@ def test_selection_combined_and():
     print("  PASS: AND combination works\n")
 
 
-def test_mcp_tool_each_audience():
+def test_should_produce_narrate_response_for_each_audience_via_mcp_tool():
     """MCP tool entry point produces a NarrateResponse with markdown for each audience."""
     print("=" * 70)
     print("TEST: MCP tool — produce response for each audience")
@@ -190,7 +169,7 @@ def test_mcp_tool_each_audience():
     print("  PASS: all 4 audiences via MCP tool\n")
 
 
-def test_mcp_tool_validation_errors():
+def test_should_raise_value_error_on_invalid_narrate_request():
     """MCP tool surfaces validation errors clearly."""
     print("=" * 70)
     print("TEST: MCP tool — validation errors")
@@ -211,7 +190,7 @@ def test_mcp_tool_validation_errors():
     print()
 
 
-def test_auditor_compliance_trail_has_dates_and_deciders():
+def test_should_include_dates_and_deciders_in_auditor_compliance_trail():
     """Auditor narrative's compliance trail shows decision_date and deciders."""
     print("=" * 70)
     print("TEST: auditor compliance trail contains structured metadata")
@@ -229,7 +208,7 @@ def test_auditor_compliance_trail_has_dates_and_deciders():
     print("  PASS: auditor trail structured properly\n")
 
 
-def test_markdown_render_is_valid_markdown():
+def test_should_render_well_formed_markdown_with_all_section_headings():
     """The markdown field renders as valid, well-formed Markdown."""
     print("=" * 70)
     print("TEST: render_markdown produces well-formed output")
@@ -248,17 +227,17 @@ def test_markdown_render_is_valid_markdown():
 
 
 if __name__ == "__main__":
-    test_all_audiences_emit_same_section_structure()
-    test_audience_specific_intro_text()
-    test_empty_sections_show_none_marker()
-    test_selection_by_domain()
-    test_selection_by_id_set()
-    test_selection_requires_at_least_one_selector()
-    test_selection_combined_and()
-    test_mcp_tool_each_audience()
-    test_mcp_tool_validation_errors()
-    test_auditor_compliance_trail_has_dates_and_deciders()
-    test_markdown_render_is_valid_markdown()
+    test_should_emit_same_five_sections_for_every_audience()
+    test_should_produce_distinct_intro_per_audience()
+    test_should_render_none_marker_for_empty_sections()
+    test_should_select_adrs_matching_domain()
+    test_should_select_adrs_matching_id_set()
+    test_should_raise_value_error_when_no_selector_given()
+    test_should_and_combine_domain_and_id_set_selectors()
+    test_should_produce_narrate_response_for_each_audience_via_mcp_tool()
+    test_should_raise_value_error_on_invalid_narrate_request()
+    test_should_include_dates_and_deciders_in_auditor_compliance_trail()
+    test_should_render_well_formed_markdown_with_all_section_headings()
     print("=" * 70)
     print("ALL adr_narrate TESTS PASSED")
     print("=" * 70)

@@ -15,8 +15,12 @@ FastMCP server.
 ## Setup
 
 ```bash
+python3 -m venv .venv && source .venv/bin/activate   # PEP-668-managed hosts
 python3 -m pip install -e ".[dev]"   # editable install with dev extras
 ```
+
+Fallback if a venv isn't an option (PEP-668-managed hosts):
+`pip install --user --break-system-packages -e ".[dev]"`.
 
 `__version__` is read from installed package metadata (`iil_adrfw.__version__`).
 
@@ -32,7 +36,11 @@ make types    # python3 -m mypy src/iil_adrfw   (zero errors — gated in CI, ke
   shared global state (env vars, singletons) at module import time — set it
   per-test via an autouse fixture + `monkeypatch` (see `examples/test_e2e_*.py`).
 - The server resolves the ADR directory from `IIL_ADRFW_ADRS_DIR` (fresh per
-  call, no caching).
+  call, no caching). Schema directory resolution follows the same pattern via
+  `IIL_ADRFW_SCHEMAS_DIR` (defaults to the bundled `schemas/`; see
+  `_schemas_dir()` in `server.py`). See `docs/CASCADE_PIPELINE.md` for how a
+  CI/Cascade pipeline sets both env vars, and the exit-code contract (0/1/2/3)
+  documented in the module docstring of `cli.py`.
 
 ## Architecture (module map)
 
@@ -49,6 +57,7 @@ make types    # python3 -m mypy src/iil_adrfw   (zero errors — gated in CI, ke
 | `cross_repo/` | cross-repo claim validation |
 | `freshness/` | repo-vs-ADR drift checks |
 | `metrics/` | Schema v4 controlling metrics (`iil-adrfw metrics`) |
+| `index/` | INDEX.md table renderer (ADR-138) — not yet wired into the CLI or MCP server |
 | `checkers/` | AST checkers (libcst-based) |
 | `server.py` | FastMCP request models + `_do_*` handlers |
 | `cli.py` | `iil-adrfw` command-line entry point |
@@ -71,4 +80,10 @@ published PyPI version in sync.
 - `make test` enforces `--cov-fail-under=55` (actual ~59%); raise as it improves.
 - The main tree at `~/github/iil-adrfw` is guarded (ADR-233): start editing
   sessions via `platform/tools/repo-session.sh start <repo> --task <slug>`.
+- After a version bump in `pyproject.toml`,
+  `python3 -c "import iil_adrfw; print(iil_adrfw.__version__)"` can still print
+  a stale version — the editable install doesn't automatically re-resolve
+  package metadata. Fix: re-run
+  `pip install -e . --force-reinstall --no-deps` (add
+  `--user --break-system-packages` on PEP-668-managed hosts if needed).
 - See `AGENT_HANDOVER.md` for current state and next priorities.

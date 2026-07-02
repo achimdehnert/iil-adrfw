@@ -5,37 +5,9 @@ Each test is isolated: stages exactly the fixture it needs, then loads with
 strict validation (validate=True) and verifies behavior.
 """
 
-import os  # noqa: E402
-import shutil  # noqa: E402
-from pathlib import Path  # noqa: E402
+from pathlib import Path
 
-BASE = Path(__file__).resolve().parent
-ADRS_DIR = BASE / "_test_adrs_v3"
-SCHEMAS_DIR = BASE.parent / "schemas"
-
-if ADRS_DIR.exists():
-    shutil.rmtree(ADRS_DIR)
-ADRS_DIR.mkdir(parents=True)
-
-os.environ["IIL_ADRFW_ADRS_DIR"] = str(ADRS_DIR)
-os.environ["IIL_ADRFW_SCHEMAS_DIR"] = str(SCHEMAS_DIR)
-
-import pytest  # noqa: E402
-
-
-@pytest.fixture(autouse=True)
-def _isolate_env(monkeypatch):
-    """Re-point env to THIS module's dirs before each test.
-
-    The module-level os.environ assignments above run once at import and get
-    clobbered by whichever example module is collected last (shared env key),
-    making the active ADRS dir collection-order dependent. The server reads
-    these vars fresh per call, so per-test setenv fully isolates the modules.
-    """
-    monkeypatch.setenv("IIL_ADRFW_ADRS_DIR", str(ADRS_DIR))
-    monkeypatch.setenv("IIL_ADRFW_SCHEMAS_DIR", str(SCHEMAS_DIR))
-
-from iil_adrfw.persistence import (  # noqa: E402
+from iil_adrfw.persistence import (
     ADRLoadError,
     _normalize_status,
     detect_legacy_aliases,
@@ -43,6 +15,14 @@ from iil_adrfw.persistence import (  # noqa: E402
     load_adrs,
     original_frontmatter,
 )
+
+BASE = Path(__file__).resolve().parent
+ADRS_DIR = BASE / "_test_adrs_v3"
+SCHEMAS_DIR = BASE.parent / "schemas"
+
+# No _stage_fixtures() here: each test below stages exactly the fixture it
+# needs via the local _stage()/_cleanup() helpers. conftest.py's
+# _prepare_test_dirs fixture only needs to create the empty ADRS_DIR once.
 
 # Common minimal frontmatter — extended in each test
 _BASE = """---
@@ -77,7 +57,7 @@ def _cleanup():
 # ─────────────────────────────────────────────────────────────
 
 
-def test_status_normalization_unit():
+def test_should_normalize_status_variants_to_canonical_form():
     """Unit tests for _normalize_status."""
     cases = [
         ("Accepted", "accepted"),
@@ -95,7 +75,7 @@ def test_status_normalization_unit():
     print("  PASS: 8 status normalization cases")
 
 
-def test_status_uppercase_loads_strict():
+def test_should_load_uppercase_status_under_strict_validation():
     """ADR with status: 'Accepted' (uppercase) loads under strict validation."""
     _cleanup()
     _stage("ADR-501.md", _BASE.format(nnn="501", extra="").replace("status: accepted", 'status: "Accepted"'))
@@ -105,7 +85,7 @@ def test_status_uppercase_loads_strict():
     print("  PASS: 'Accepted' normalized to 'accepted' before strict check")
 
 
-def test_status_with_version_suffix():
+def test_should_strip_version_suffix_from_status_under_strict_validation():
     """ADR with 'accepted (v2)' loads under strict validation."""
     _cleanup()
     _stage("ADR-502.md", _BASE.format(nnn="502", extra="").replace("status: accepted", 'status: "accepted (v2)"'))
@@ -120,7 +100,7 @@ def test_status_with_version_suffix():
 # ─────────────────────────────────────────────────────────────
 
 
-def test_relates_to_aliases_to_related():
+def test_should_alias_relates_to_field_to_related():
     _cleanup()
     extra = "relates_to:\n  - ADR-001\n"
     _stage("ADR-510.md", _BASE.format(nnn="510", extra=extra))
@@ -130,7 +110,7 @@ def test_relates_to_aliases_to_related():
     print("  PASS: relates_to → related")
 
 
-def test_author_aliases_to_owner():
+def test_should_alias_author_field_to_owner():
     _cleanup()
     extra = 'author: "Cascade"\n'
     _stage("ADR-511.md", _BASE.format(nnn="511", extra=extra))
@@ -140,7 +120,7 @@ def test_author_aliases_to_owner():
     print("  PASS: author → owner")
 
 
-def test_adr_id_aliases_to_id():
+def test_should_alias_adr_id_field_to_id():
     """adr_id field is renamed to id. Combined with main id, target wins."""
     _cleanup()
     # Frontmatter has only adr_id, no id
@@ -163,7 +143,7 @@ domains:
     print("  PASS: adr_id → id")
 
 
-def test_legacy_alias_is_detected_but_still_validates():
+def test_should_detect_legacy_alias_and_still_validate():
     """A non-canonical alias (adr_id) is DETECTED for deprecation warning,
     yet the ADR still validates (warn, never hard-fail)."""
     _cleanup()
@@ -190,7 +170,7 @@ domains:
     print("  PASS: adr_id detected as deprecated AND still valid")
 
 
-def test_canonical_id_yields_no_deprecation_warning():
+def test_should_not_warn_when_canonical_id_field_used():
     """An ADR using the canonical id: key produces no alias warnings."""
     _cleanup()
     fm = _BASE.format(nnn="514", extra="")
@@ -199,7 +179,7 @@ def test_canonical_id_yields_no_deprecation_warning():
     print("  PASS: canonical id → no deprecation warning")
 
 
-def test_review_aliases_to_review_status():
+def test_should_alias_review_field_to_review_status():
     _cleanup()
     extra = "review: approved\n"
     _stage("ADR-513.md", _BASE.format(nnn="513", extra=extra))
@@ -208,7 +188,7 @@ def test_review_aliases_to_review_status():
     print("  PASS: review → review_status")
 
 
-def test_last_verified_aliases_to_last_reviewed():
+def test_should_alias_last_verified_field_to_last_reviewed():
     _cleanup()
     extra = 'last_verified: "2026-04-01"\n'
     _stage("ADR-514.md", _BASE.format(nnn="514", extra=extra))
@@ -222,7 +202,7 @@ def test_last_verified_aliases_to_last_reviewed():
 # ─────────────────────────────────────────────────────────────
 
 
-def test_jekyll_metadata_stripped():
+def test_should_strip_jekyll_metadata_fields():
     """nav_order, parent: tool-specific noise, stripped silently."""
     _cleanup()
     extra = "nav_order: 5\nparent: Architecture\n"
@@ -233,7 +213,7 @@ def test_jekyll_metadata_stripped():
     print("  PASS: nav_order, parent stripped before validation")
 
 
-def test_reviewed_by_stripped_not_aliased():
+def test_should_strip_reviewed_by_without_touching_consulted():
     """reviewed-by has different semantics from consulted — must be stripped, not aliased."""
     _cleanup()
     extra = "reviewed-by:\n  - Late Reviewer\nconsulted:\n  - Early Advisor\n"
@@ -246,7 +226,7 @@ def test_reviewed_by_stripped_not_aliased():
     print("  PASS: reviewed-by stripped, consulted untouched")
 
 
-def test_supersedes_check_stripped():
+def test_should_strip_supersedes_check_field():
     """supersedes_check is audit-tool transient state, not user content."""
     _cleanup()
     extra = "supersedes_check: pending\n"
@@ -261,7 +241,7 @@ def test_supersedes_check_stripped():
 # ─────────────────────────────────────────────────────────────
 
 
-def test_truly_unknown_field_still_rejected():
+def test_should_reject_truly_unknown_field_under_strict_validation():
     """Unknown fields not in the strip list must fail strict validation."""
     _cleanup()
     extra = "xyzzy_unknown_field: 42\n"
@@ -274,7 +254,7 @@ def test_truly_unknown_field_still_rejected():
     print("  PASS: truly unknown field rejected (strict mode preserved)")
 
 
-def test_raw_mode_skips_phase_1():
+def test_should_preserve_source_frontmatter_when_raw_mode_enabled():
     """raw=True skips normalization — useful for diagnosing what raw frontmatter looks like."""
     _cleanup()
     extra = 'author: "Cascade"\nrelates_to:\n  - ADR-001\n'
@@ -292,7 +272,7 @@ def test_raw_mode_skips_phase_1():
 # ─────────────────────────────────────────────────────────────
 
 
-def test_implemented_bool_sets_status():
+def test_should_set_implementation_status_when_implemented_is_true():
     """implemented: true → implementation_status: implemented"""
     _cleanup()
     extra = "implemented: true\n"
@@ -303,7 +283,7 @@ def test_implemented_bool_sets_status():
     print("  PASS: implemented:true → implementation_status:implemented")
 
 
-def test_implemented_date_sets_status_and_updated():
+def test_should_move_implemented_date_to_updated_field():
     """implemented: '2026-03-15' → status set + date moved to 'updated' (not evidence)."""
     _cleanup()
     extra = 'implemented: "2026-03-15"\n'
@@ -315,7 +295,7 @@ def test_implemented_date_sets_status_and_updated():
     print("  PASS: implemented:date → status + updated")
 
 
-def test_implemented_false_no_change():
+def test_should_leave_implementation_status_unchanged_when_implemented_false():
     """implemented: false should not flip status; field is removed silently."""
     _cleanup()
     extra = "implemented: false\n"
@@ -331,7 +311,7 @@ def test_implemented_false_no_change():
 # ─────────────────────────────────────────────────────────────
 
 
-def test_amended_as_plain_date_normalized():
+def test_should_normalize_legacy_amended_date_to_last_reviewed():
     """amended: '2026-05-08' (legacy) becomes last_reviewed and is removed from frontmatter."""
     _cleanup()
     extra = 'amended: "2026-05-08"\n'
@@ -343,7 +323,7 @@ def test_amended_as_plain_date_normalized():
     print("  PASS: amended:date legacy form → last_reviewed")
 
 
-def test_amended_proper_list_preserved():
+def test_should_preserve_amended_list_when_already_well_formed():
     """amended as proper list of Amendments is preserved unchanged."""
     _cleanup()
     extra = 'amended:\n  - version: "v1.1"\n    at: "2026-05-08"\n    by: "Achim"\n    summary: "Bug-fix amendment"\n'
@@ -359,7 +339,7 @@ def test_amended_proper_list_preserved():
 # ─────────────────────────────────────────────────────────────
 
 
-def test_new_fields_load_and_appear_on_domain_object():
+def test_should_hydrate_new_schema_v3_fields_onto_domain_object():
     _cleanup()
     extra = (
         'updated: "2026-04-15"\n'
@@ -379,7 +359,7 @@ def test_new_fields_load_and_appear_on_domain_object():
     print("  PASS: all 5 new schema-v3 fields hydrate onto ADR object")
 
 
-def test_review_status_enum_validated():
+def test_should_reject_invalid_review_status_enum_value():
     """review_status must match enum — invalid values rejected."""
     _cleanup()
     extra = "review_status: bogus_value\n"
@@ -397,7 +377,7 @@ def test_review_status_enum_validated():
 # ─────────────────────────────────────────────────────────────
 
 
-def test_glossary_field_now_rejected():
+def test_should_reject_removed_glossary_field():
     """glossary was removed from schema in v3 — strict mode rejects it."""
     _cleanup()
     extra = "glossary:\n  - term: foo\n    definition: bar\n"
@@ -415,7 +395,7 @@ def test_glossary_field_now_rejected():
 # ─────────────────────────────────────────────────────────────
 
 
-def test_realistic_legacy_adr_full_chain():
+def test_should_normalize_all_legacy_quirks_in_realistic_adr():
     """An ADR with multiple legacy quirks loads cleanly through full Phase 1."""
     _cleanup()
     fm = """---
@@ -467,30 +447,30 @@ amended: "2025-12-01"
 
 if __name__ == "__main__":
     tests = [
-        ("status normalization unit", test_status_normalization_unit),
-        ("status uppercase loads strict", test_status_uppercase_loads_strict),
-        ("status with (v2) suffix", test_status_with_version_suffix),
-        ("relates_to → related", test_relates_to_aliases_to_related),
-        ("author → owner", test_author_aliases_to_owner),
-        ("adr_id → id", test_adr_id_aliases_to_id),
-        ("legacy alias detected + still valid", test_legacy_alias_is_detected_but_still_validates),
-        ("canonical id → no warning", test_canonical_id_yields_no_deprecation_warning),
-        ("review → review_status", test_review_aliases_to_review_status),
-        ("last_verified → last_reviewed", test_last_verified_aliases_to_last_reviewed),
-        ("Jekyll metadata stripped", test_jekyll_metadata_stripped),
-        ("reviewed-by stripped not aliased", test_reviewed_by_stripped_not_aliased),
-        ("supersedes_check stripped", test_supersedes_check_stripped),
-        ("truly unknown field rejected", test_truly_unknown_field_still_rejected),
-        ("raw=True skips Phase 1", test_raw_mode_skips_phase_1),
-        ("implemented:bool", test_implemented_bool_sets_status),
-        ("implemented:date", test_implemented_date_sets_status_and_updated),
-        ("implemented:false", test_implemented_false_no_change),
-        ("amended:date legacy", test_amended_as_plain_date_normalized),
-        ("amended list preserved", test_amended_proper_list_preserved),
-        ("new fields round-trip", test_new_fields_load_and_appear_on_domain_object),
-        ("review_status enum", test_review_status_enum_validated),
-        ("glossary now rejected", test_glossary_field_now_rejected),
-        ("realistic legacy ADR", test_realistic_legacy_adr_full_chain),
+        ("status normalization unit", test_should_normalize_status_variants_to_canonical_form),
+        ("status uppercase loads strict", test_should_load_uppercase_status_under_strict_validation),
+        ("status with (v2) suffix", test_should_strip_version_suffix_from_status_under_strict_validation),
+        ("relates_to → related", test_should_alias_relates_to_field_to_related),
+        ("author → owner", test_should_alias_author_field_to_owner),
+        ("adr_id → id", test_should_alias_adr_id_field_to_id),
+        ("legacy alias detected + still valid", test_should_detect_legacy_alias_and_still_validate),
+        ("canonical id → no warning", test_should_not_warn_when_canonical_id_field_used),
+        ("review → review_status", test_should_alias_review_field_to_review_status),
+        ("last_verified → last_reviewed", test_should_alias_last_verified_field_to_last_reviewed),
+        ("Jekyll metadata stripped", test_should_strip_jekyll_metadata_fields),
+        ("reviewed-by stripped not aliased", test_should_strip_reviewed_by_without_touching_consulted),
+        ("supersedes_check stripped", test_should_strip_supersedes_check_field),
+        ("truly unknown field rejected", test_should_reject_truly_unknown_field_under_strict_validation),
+        ("raw=True skips Phase 1", test_should_preserve_source_frontmatter_when_raw_mode_enabled),
+        ("implemented:bool", test_should_set_implementation_status_when_implemented_is_true),
+        ("implemented:date", test_should_move_implemented_date_to_updated_field),
+        ("implemented:false", test_should_leave_implementation_status_unchanged_when_implemented_false),
+        ("amended:date legacy", test_should_normalize_legacy_amended_date_to_last_reviewed),
+        ("amended list preserved", test_should_preserve_amended_list_when_already_well_formed),
+        ("new fields round-trip", test_should_hydrate_new_schema_v3_fields_onto_domain_object),
+        ("review_status enum", test_should_reject_invalid_review_status_enum_value),
+        ("glossary now rejected", test_should_reject_removed_glossary_field),
+        ("realistic legacy ADR", test_should_normalize_all_legacy_quirks_in_realistic_adr),
     ]
     print("=" * 70)
     print(f"Schema v3 tests — {len(tests)} cases")

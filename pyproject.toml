@@ -68,6 +68,10 @@ testpaths = ["examples"]
 # coverage from ~59% to ~74% — floor kept a few points below actual to
 # absorb pytest-randomly reordering effects.
 addopts = "--cov=iil_adrfw --cov-report=term-missing --cov-fail-under=70"
+# ADR-057 test naming convention (test_should_<expected_behavior>), enforced
+# via iil-testkit. All examples/*.py tests were renamed to conform (#26);
+# "error" hard-fails collection on any future regression instead of warning.
+iil_naming_mode = "error"
 
 [tool.coverage.run]
 source = ["iil_adrfw"]
