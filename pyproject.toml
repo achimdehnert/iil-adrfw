@@ -27,6 +27,7 @@ dev = [
     "pytest-cov>=5.0",
     "ruff>=0.7",
     "mypy>=1.11",
+    "types-PyYAML>=6.0",
 ]
 
 [project.scripts]
@@ -73,9 +74,7 @@ source = ["iil_adrfw"]
 show_missing = true
 
 [tool.mypy]
-# Advisory type-check harness — wired via `make types`, NOT yet error-free.
-# ~37 genuine type issues remain (tracked in AGENT_HANDOVER.md as work for a
-# stronger model to drive down). `ignore_missing_imports` clears third-party
-# stub noise so the real backlog is what surfaces.
+# Error-free and gated in CI (`types` job runs `make types`). Keep it at zero.
+# `ignore_missing_imports` clears third-party stub noise so real issues surface.
 python_version = "3.12"
 ignore_missing_imports = true

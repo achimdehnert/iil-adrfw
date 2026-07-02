@@ -472,6 +472,8 @@ def _do_audit(req: AuditRequest) -> AuditResponse:
     adrs = _load_constitution()
     graph = ConstitutionGraph.build(adrs)
     report = run_audit(graph, auditors=req.auditors, now=req.as_of)
+    health = report.health
+    assert health is not None  # run_audit always computes a HealthSnapshot
 
     return AuditResponse(
         auditors_run=list(report.auditors_run),
@@ -487,13 +489,13 @@ def _do_audit(req: AuditRequest) -> AuditResponse:
             for f in report.findings
         ],
         health=HealthOut(
-            score=report.health.score,
-            internal_consistency=report.health.internal_consistency,
-            code_alignment=report.health.code_alignment,
-            coverage=report.health.coverage,
-            freshness=report.health.freshness,
-            supersession_hygiene=report.health.supersession_hygiene,
-            issue_counts=report.health.issue_counts,
+            score=health.score,
+            internal_consistency=health.internal_consistency,
+            code_alignment=health.code_alignment,
+            coverage=health.coverage,
+            freshness=health.freshness,
+            supersession_hygiene=health.supersession_hygiene,
+            issue_counts=health.issue_counts,
         ),
         runtime_ms=report.runtime_ms,
     )

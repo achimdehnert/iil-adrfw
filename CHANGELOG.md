@@ -3,6 +3,22 @@
 All notable changes to this project will be documented in this file.
 Format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [Unreleased]
+
+### Fixed
+
+- **`check` text output crashed on violations**: it referenced non-existent
+  `ViolationOut` fields (`file_path`/`line_number`/`message`); now prints
+  `file:line_start` plus `expected`/`actual`. (`--json` was unaffected.)
+- **`validate-cross-repo` text output crashed on conflicts**: it referenced
+  non-existent `ConflictOut` fields (`severity`/`description`); now prints
+  `conflict_class`/`confidence` and the `claim`. (`--json` was unaffected.)
+
+### Changed
+
+- mypy backlog driven 37 → 0; `make types` is now a required CI gate
+  (`types` job in `ci.yml`). `types-PyYAML` added to the `dev` extra.
+
 ## [0.6.0] — 2026-05-30
 
 ### Added — `metrics` CLI command (Schema v4 controlling)

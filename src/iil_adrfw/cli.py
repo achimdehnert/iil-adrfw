@@ -16,6 +16,7 @@ import json
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from iil_adrfw.server import (
     AuditRequest,
@@ -77,8 +78,9 @@ def _cmd_check(args: argparse.Namespace) -> int:
         else:
             print(f"FOUND {len(resp.violations)} violation(s):")
             for v in resp.violations:
-                print(f"  [{v.severity}] {v.rule_id} at {v.file_path}:{v.line_number or '?'}")
-                print(f"    {v.message}")
+                print(f"  [{v.severity}] {v.rule_id} at {v.file}:{v.line_start}")
+                print(f"    expected: {v.expected}")
+                print(f"    actual:   {v.actual}")
     return 1 if resp.violations else 0
 
 
@@ -158,7 +160,7 @@ def _cmd_validate_cross_repo(args: argparse.Namespace) -> int:
             print("  OK — no conflicts")
         else:
             for c in resp.conflicts:
-                print(f"  [{c.severity}] {c.rule_id or '-'}: {c.description}")
+                print(f"  [{c.conflict_class}/{c.confidence}] {c.rule_id or '-'}: {c.claim}")
         if resp.has_blocking_conflicts:
             print("\n⚠ Has blocking conflicts.")
     return 1 if resp.has_blocking_conflicts else 0
@@ -580,7 +582,7 @@ def _cmd_graph(args: argparse.Namespace) -> int:
         return 2
 
     md_files = sorted(adr_dir.glob("ADR-*.md"))
-    adrs_meta = []
+    adrs_meta: list[dict[str, Any]] = []
 
     for md in md_files:
         try:
@@ -601,19 +603,19 @@ def _cmd_graph(args: argparse.Namespace) -> int:
 
     # Build edges
     edges = []
-    for adr in adrs_meta:
-        aid = adr["id"]
-        sup = adr["superseded_by"]
+    for meta in adrs_meta:
+        aid = meta["id"]
+        sup = meta["superseded_by"]
         if sup:
             refs = sup if isinstance(sup, (list, tuple)) else [sup]
             for r in refs:
                 edges.append((aid, str(r).strip(), "superseded_by"))
-        for dep in adr["depends_on"]:
+        for dep in meta["depends_on"]:
             edges.append((aid, dep, "depends_on"))
-        for rel in adr["related"]:
+        for rel in meta["related"]:
             if rel.startswith("ADR-"):
                 edges.append((aid, rel, "related"))
-        for am in adr["amends"]:
+        for am in meta["amends"]:
             edges.append((aid, am, "amends"))
 
     if args.dot:
@@ -629,10 +631,10 @@ def _cmd_graph(args: argparse.Namespace) -> int:
             "superseded": "#f8d7da",
             "rejected": "#f5c6cb",
         }
-        for adr in adrs_meta:
-            color = status_colors.get(adr["status"], "#ffffff")
-            label = f"{adr['id']}\\n{adr['title']}"
-            print(f'  "{adr["id"]}" [label="{label}", fillcolor="{color}"];')
+        for meta in adrs_meta:
+            color = status_colors.get(meta["status"], "#ffffff")
+            label = f"{meta['id']}\\n{meta['title']}"
+            print(f'  "{meta["id"]}" [label="{label}", fillcolor="{color}"];')
         edge_styles = {
             "superseded_by": "[color=red, style=dashed, label=supersedes]",
             "depends_on": "[color=blue, label=depends]",
@@ -657,7 +659,7 @@ def _cmd_graph(args: argparse.Namespace) -> int:
         if not edges:
             print("  No dependencies found.")
         else:
-            by_type = {}
+            by_type: dict[str, list[tuple[str, str]]] = {}
             for s, d, t in edges:
                 by_type.setdefault(t, []).append((s, d))
             for rel_type, rels in sorted(by_type.items()):
@@ -697,7 +699,7 @@ def _cmd_export(args: argparse.Namespace) -> int:
         return 2
 
     md_files = sorted(adr_dir.glob("ADR-*.md"))
-    adrs = []
+    adrs: list[dict[str, Any]] = []
     for md in md_files:
         try:
             adr = load_adr(md, schema_dir, validate=False)

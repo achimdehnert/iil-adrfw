@@ -210,7 +210,7 @@ def _summarize_change(adr_id: str, kind: ChangeKind, fcs: list[FieldChange]) -> 
         if fc.field_path == "status":
             parts.append(f"status: {fc.before} → {fc.after}")
         elif fc.field_path == "rules":
-            after = fc.after or {}
+            after = fc.after if isinstance(fc.after, dict) else {}
             n_add = len(after.get("added", []))
             n_rem = len(after.get("removed", []))
             n_mod = len(after.get("modified", []))
@@ -223,8 +223,8 @@ def _summarize_change(adr_id: str, kind: ChangeKind, fcs: list[FieldChange]) -> 
                 ops.append(f"~{n_mod}")
             parts.append(f"rules: {' '.join(ops)}")
         elif fc.field_path in ("supersedes", "superseded_by", "consolidates"):
-            l_count = len(fc.before or [])
-            r_count = len(fc.after or [])
+            l_count = len(fc.before) if isinstance(fc.before, (list, tuple)) else 0
+            r_count = len(fc.after) if isinstance(fc.after, (list, tuple)) else 0
             parts.append(f"{fc.field_path}: {l_count} → {r_count} refs")
         else:
             parts.append(f"{fc.field_path} changed")

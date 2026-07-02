@@ -25,7 +25,7 @@ python3 -m pip install -e ".[dev]"   # editable install with dev extras
 ```bash
 make test     # python3 -m pytest examples/   (the suite lives in examples/)
 make lint     # python3 -m ruff check .
-make types    # python3 -m mypy src/iil_adrfw   (advisory — not yet green, see Known issues)
+make types    # python3 -m mypy src/iil_adrfw   (zero errors — gated in CI, keep it green)
 ```
 
 - Tests use `pytest-randomly`; they must pass in **any** order. Never configure
@@ -68,7 +68,7 @@ published PyPI version in sync.
 
 ## Known issues / gotchas
 
-- `make types` (mypy) has a config but is **not** yet green (37 errors) and is
-  advisory — not gated in CI. Driving it to zero is a good first optimization.
 - `make test` enforces `--cov-fail-under=55` (actual ~59%); raise as it improves.
+- The main tree at `~/github/iil-adrfw` is guarded (ADR-233): start editing
+  sessions via `platform/tools/repo-session.sh start <repo> --task <slug>`.
 - See `AGENT_HANDOVER.md` for current state and next priorities.

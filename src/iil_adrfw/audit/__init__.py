@@ -13,7 +13,7 @@ Auditors:
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta, timezone
 from enum import Enum
@@ -453,10 +453,9 @@ def compute_health(graph: ConstitutionGraph, findings: list[AuditFinding]) -> He
         coverage = 1.0
     else:
         gap = sum(
-            int(re.search(r"(\d+) have no", f.description).group(1))
-            if re.search(r"(\d+) have no", f.description)
-            else 0
+            int(m.group(1))
             for f in coverage_findings
+            if (m := re.search(r"(\d+) have no", f.description)) is not None
         )
         coverage = max(0.0, 1.0 - gap / consumers_total)
 
@@ -484,7 +483,9 @@ def compute_health(graph: ConstitutionGraph, findings: list[AuditFinding]) -> He
 # --- Top-level run ---
 
 
-_AUDITORS = {
+# Values have differing signatures (staleness/open_question_aging take `now`),
+# hence the permissive Callable[..., ...].
+_AUDITORS: dict[str, Callable[..., list[AuditFinding]]] = {
     "supersession_hygiene": audit_supersession_hygiene,
     "dependency_health": audit_dependency_health,
     "staleness": audit_staleness,
