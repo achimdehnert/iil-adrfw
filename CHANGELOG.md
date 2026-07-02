@@ -7,6 +7,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ### Security
 
+- Advisory supply-chain gate in CI (#32): a new `security` job
+  (`.github/workflows/ci.yml`) installs the project against a new
+  `constraints.txt` — a `uv`-resolved, project-scoped lock of the runtime
+  dependency tree — and runs `pip-audit` (project-scoped, not an ambient
+  environment scan) plus a lean `bandit` pass over `src/iil_adrfw`, both
+  advisory (`continue-on-error: true`) so findings can't redden the
+  pipeline yet. Re-resolving the tree via `uv` already picks up patched
+  versions of the transitive `fastmcp` deps (`pyjwt`, `cryptography`,
+  `starlette`, `python-multipart`, …) previously flagged by an ambient
+  `pip-audit` scan; those CVE paths were unreachable anyway given
+  iil-adrfw's documented stdio MCP transport.
 - Path containment in the ADR loader (#31). Two traversal channels are now
   rejected before any out-of-tree read: a `rules_file` frontmatter field that
   points at an absolute path or `../` escape (previously opened and YAML-parsed

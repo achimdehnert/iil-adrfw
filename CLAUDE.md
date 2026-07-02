@@ -42,6 +42,18 @@ make types    # python3 -m mypy src/iil_adrfw   (zero errors — gated in CI, ke
   CI/Cascade pipeline sets both env vars, and the exit-code contract (0/1/2/3)
   documented in the module docstring of `cli.py`.
 
+## Security
+
+`constraints.txt` is a `uv`-resolved, project-scoped lock of the runtime
+dependency tree (regenerate with
+`uv pip compile pyproject.toml -o constraints.txt --python-version 3.12`
+after changing a bound in `pyproject.toml`). CI runs an advisory `security`
+job (`.github/workflows/ci.yml`, `needs: lint`) that installs against it and
+runs `pip-audit` + `bandit`, both `continue-on-error: true` so findings can't
+redden the pipeline yet (see issue #32 for the CVE inventory + reachability
+argument for going advisory-first). Reproduce locally:
+`pip install -e . -c constraints.txt && pip install pip-audit && pip-audit -r constraints.txt`.
+
 ## Architecture (module map)
 
 | Module | Responsibility |
