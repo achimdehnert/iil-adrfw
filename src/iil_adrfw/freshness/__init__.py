@@ -279,9 +279,10 @@ def check_freshness(
     for claim in claims:
         if claim.claim_type in ("version", "image"):
             actual = reality_versions.get(claim.subject)
+            claim_parts = claim.value.split(".")
             if actual is None:
                 report.unverifiable_claims += 1
-            elif not actual.startswith(claim.value) and claim.value != actual:
+            elif actual.split(".")[: len(claim_parts)] != claim_parts and claim.value != actual:
                 # Major version mismatch = warning, minor = info
                 claim_major = claim.value.split(".")[0]
                 actual_major = actual.split(".")[0]
