@@ -5,6 +5,30 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Changed
+
+- **Consolidated the staleness / reference-drift logic (#19, B-2 + B-18):** the CLI
+  (`_cmd_staleness`) and the MCP tool (`adr_staleness`) had drifted into two
+  divergent implementations (different field coverage, different messages). Both
+  now call a single `_do_staleness(adr_dir, schemas_dir, months)` in `server.py`.
+  Unified coverage: broken references are flagged for `superseded_by` (error),
+  `depends_on` (warning) **and** `related` (info) — the `related` check previously
+  read a non-existent domain attribute (dead code) and now reads `raw_frontmatter`,
+  so it actually fires. ADR files that fail to load are reported in a new
+  `load_errors` field instead of being silently swallowed by `except: continue`.
+  Path containment stays where it belongs: the MCP tool validates client dirs via
+  `_require_within_root` (#22), the trusted CLI passes the user's dir directly.
+
+### Fixed
+
+- **MCP bi-temporal timestamps crashed on naive input (#18):** `CheckRequest.as_of`,
+  `AuditRequest.as_of` and `DiffRequest.left_time`/`right_time` accepted an ISO
+  string without an offset, which Pydantic parsed to a *naive* datetime; comparing
+  it against the tz-aware ADR dates raised `TypeError: can't compare offset-naive
+  and offset-aware datetimes`. These fields now normalize naive input to UTC via a
+  shared `UTCDateTime` annotated type (mirroring the CLI's `_parse_iso`), so the
+  MCP path behaves like the CLI. Explicit offsets are preserved.
+
 ### Security
 
 - MCP path-parameter containment (#22). Client-supplied path parameters on the

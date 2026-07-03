@@ -36,6 +36,7 @@ from iil_adrfw.server import (
     _do_narrate,
     _do_propose,
     _do_query,
+    _do_staleness,
     _do_validate_cross_repo,
 )
 
@@ -429,147 +430,43 @@ def _cmd_validate(args: argparse.Namespace) -> int:
 
 def _cmd_staleness(args: argparse.Namespace) -> int:
     """Check ADRs for staleness (age, missing reviews, broken references)."""
-    from datetime import date, timedelta
-
-    from iil_adrfw.persistence import ADRLoadError, load_adr
     from iil_adrfw.schemas import get_schema_dir
 
     adr_dir = Path(args.adr_dir)
     schema_dir = Path(args.schema_dir) if args.schema_dir else get_schema_dir()
-    max_months = args.months
 
     if not adr_dir.is_dir():
         print(f"error: {adr_dir} is not a directory", file=sys.stderr)
         return 2
 
-    md_files = sorted(adr_dir.glob("ADR-*.md"))
-    if not md_files:
+    if not sorted(adr_dir.glob("ADR-*.md")):
         print("error: no ADR-*.md files found", file=sys.stderr)
         return 2
 
-    today = date.today()
-    threshold = today - timedelta(days=30 * max_months)
-    findings = []
-    all_ids = set()
-    adrs_data = []
-
-    # Phase 1: Load all ADRs and extract metadata
-    for md in md_files:
-        try:
-            adr = load_adr(md, schema_dir, validate=False)
-            adr_id = adr.id
-            all_ids.add(adr_id)
-            adrs_data.append(adr)
-
-            # Staleness: check decision_date
-            adr_date = None
-            if hasattr(adr, "decision_date") and adr.decision_date:
-                try:
-                    adr_date = date.fromisoformat(str(adr.decision_date)[:10])
-                except (ValueError, TypeError):
-                    pass
-
-            status = adr.status.value if hasattr(adr.status, "value") else str(adr.status)
-
-            # Skip deprecated/superseded for staleness
-            if status.lower() in ("deprecated", "superseded", "rejected"):
-                continue
-
-            if adr_date and adr_date < threshold:
-                age_months = (today - adr_date).days // 30
-                findings.append(
-                    {
-                        "adr_id": adr_id,
-                        "type": "stale",
-                        "severity": "warning",
-                        "message": f"Last decision date {adr_date} ({age_months}mo ago, threshold: {max_months}mo)",
-                    }
-                )
-
-            # Missing review_status on accepted ADRs
-            review = getattr(adr, "review_status", None)
-            if status.lower() == "accepted" and not review:
-                findings.append(
-                    {
-                        "adr_id": adr_id,
-                        "type": "no_review",
-                        "severity": "info",
-                        "message": "Accepted ADR without review_status field",
-                    }
-                )
-
-        except (ADRLoadError, Exception):
-            continue
-
-    # Phase 2: Reference drift — check if referenced ADRs exist
-    for adr in adrs_data:
-        adr_id = adr.id
-        # Check superseded_by (can be string or list)
-        sup_by = getattr(adr, "superseded_by", None)
-        if sup_by:
-            refs = sup_by if isinstance(sup_by, (list, tuple)) else [sup_by]
-            for ref in refs:
-                ref_str = str(ref).strip()
-                if ref_str and ref_str not in all_ids:
-                    findings.append(
-                        {
-                            "adr_id": adr_id,
-                            "type": "broken_ref",
-                            "severity": "error",
-                            "message": f"superseded_by references '{ref_str}' which does not exist",
-                        }
-                    )
-        # Check depends_on
-        deps = getattr(adr, "depends_on", None) or []
-        for dep in deps:
-            if dep not in all_ids:
-                findings.append(
-                    {
-                        "adr_id": adr_id,
-                        "type": "broken_ref",
-                        "severity": "warning",
-                        "message": f"depends_on references '{dep}' which does not exist",
-                    }
-                )
-        # Check related
-        related = getattr(adr, "related", None) or []
-        for rel in related:
-            if rel.startswith("ADR-") and rel not in all_ids:
-                findings.append(
-                    {
-                        "adr_id": adr_id,
-                        "type": "broken_ref",
-                        "severity": "info",
-                        "message": f"related references '{rel}' which does not exist",
-                    }
-                )
-
-    # Output
-    stale_count = len([f for f in findings if f["type"] == "stale"])
-    ref_count = len([f for f in findings if f["type"] == "broken_ref"])
-    review_count = len([f for f in findings if f["type"] == "no_review"])
+    # Shared implementation (same logic the MCP adr_staleness tool runs). The CLI
+    # is trusted, so it passes the user's dir directly (no _require_within_root).
+    resp = _do_staleness(adr_dir, schema_dir, args.months)
+    findings = resp.findings
 
     if args.json:
-        _print_json(
-            {
-                "total_adrs": len(md_files),
-                "stale_count": stale_count,
-                "broken_refs": ref_count,
-                "missing_reviews": review_count,
-                "findings": findings,
-            }
-        )
+        _print_json(resp.model_dump())
     else:
-        print(f"Staleness Report: {len(md_files)} ADRs scanned (threshold: {max_months}mo)\n")
-        print(f"  Stale ADRs:       {stale_count}")
-        print(f"  Broken refs:      {ref_count}")
-        print(f"  Missing reviews:  {review_count}")
+        print(f"Staleness Report: {resp.total_adrs} ADRs scanned (threshold: {args.months}mo)\n")
+        print(f"  Stale ADRs:       {resp.stale_count}")
+        print(f"  Broken refs:      {resp.broken_refs}")
+        print(f"  Missing reviews:  {resp.missing_reviews}")
+        if resp.load_errors:
+            print(f"  Load errors:      {len(resp.load_errors)}")
         if findings:
             print(f"\nFindings ({len(findings)}):")
             for f in sorted(findings, key=lambda x: (x["severity"], x["adr_id"])):
                 print(f"  [{f['severity']:7}] {f['adr_id']}: {f['message']}")
         else:
             print("\n  ✓ No staleness or drift issues found")
+        if resp.load_errors:
+            print(f"\nLoad errors ({len(resp.load_errors)}):")
+            for e in resp.load_errors:
+                print(f"  {e['file']}: {e['error']}")
 
     return 1 if any(f["severity"] == "error" for f in findings) else 0
 
