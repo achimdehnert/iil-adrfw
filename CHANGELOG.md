@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### CI
+
+- **CI hygiene (#24, B-12):** `ci.yml` now sets a least-privilege
+  `permissions: contents: read`, a `concurrency` group that cancels superseded
+  runs, and `cache: pip` on every job; the lint job runs `make lint`
+  (`ruff check .`) so CI matches local and covers `examples/` + root scripts
+  (previously `ruff check src/` only). `publish.yml` gains a `version-check`
+  gate (run before publish) that fails fast if `pyproject.version` is already
+  on PyPI or doesn't match the top versioned CHANGELOG heading — no change to
+  the publish mechanism itself, and it only runs on the manual publish dispatch.
+
 ### Changed
 
 - **Consolidated the staleness / reference-drift logic (#19, B-2 + B-18):** the CLI
