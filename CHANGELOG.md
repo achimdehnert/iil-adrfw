@@ -5,6 +5,15 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Added
+
+- **`iil-adrfw index` CLI subcommand (#43):** exposes the previously-unwired
+  `index/` module (INDEX.md table renderer, ADR-138 Impl column) as a CLI
+  command — `iil-adrfw index <adr_dir>` renders the full INDEX.md (H1 + legend +
+  next-free preamble), `--table-only` emits just the table block, `--include-archive`
+  adds non-colliding `_archive/` ADRs, `-o` writes to a file. Mirrors the
+  `graph`/`export` subcommand shape.
+
 ### CI
 
 - **CI hygiene (#24, B-12):** `ci.yml` now sets a least-privilege

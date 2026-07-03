@@ -1,4 +1,4 @@
-"""Headless CLI — 14 subcommands covering the MCP tool surface plus a few
+"""Headless CLI — 15 subcommands covering the MCP tool surface plus a few
 CLI-only conveniences (`list`, `graph`, `export`).
 
 Exit codes (consistent across subcommands):
@@ -696,6 +696,44 @@ def _add_export_parser(sub):
     p.set_defaults(func=_cmd_export)
 
 
+# ─── adr_index (platform INDEX.md renderer, ADR-138) ─────────────
+
+
+def _cmd_index(args: argparse.Namespace) -> int:
+    """Render the platform INDEX.md table block (ADR-138 Impl column)."""
+    from iil_adrfw.index import render_index
+
+    adr_dir = Path(args.adr_dir)
+    if not adr_dir.is_dir():
+        print(f"error: {adr_dir} is not a directory", file=sys.stderr)
+        return 2
+
+    output = render_index(
+        adr_dir,
+        include_archive=args.include_archive,
+        include_header=not args.table_only,
+    )
+    if args.output:
+        Path(args.output).write_text(output, encoding="utf-8")
+        print(f"Wrote INDEX for {adr_dir} to {args.output}")
+    else:
+        print(output, end="")
+    return 0
+
+
+def _add_index_parser(sub):
+    p = sub.add_parser("index", help="Render the ADR INDEX.md table (ADR-138 Impl column)")
+    p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
+    p.add_argument(
+        "--include-archive", action="store_true", help="Include _archive/ ADRs whose number doesn't collide with a live ADR"
+    )
+    p.add_argument(
+        "--table-only", action="store_true", help="Emit only the table block (no H1/legend/next-free preamble)"
+    )
+    p.add_argument("-o", "--output", help="Output file path (default: stdout)")
+    p.set_defaults(func=_cmd_index)
+
+
 def _add_validate_parser(sub):
     p = sub.add_parser("validate", help="Validate ADR frontmatter against schema v3")
     p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
@@ -848,6 +886,7 @@ def main() -> None:
     _add_staleness_parser(sub)
     _add_graph_parser(sub)
     _add_export_parser(sub)
+    _add_index_parser(sub)
     _add_check_parser(sub)
     _add_explain_parser(sub)
     _add_list_parser(sub)

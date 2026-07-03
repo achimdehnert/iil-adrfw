@@ -73,6 +73,9 @@ iil-adrfw graph docs/adr/ --dot > graph.dot
 # Export Outline-compatible markdown registry
 iil-adrfw export docs/adr/ -o adr-registry.md
 
+# Render the INDEX.md table (ADR-138 Impl column); --table-only for the bare block
+iil-adrfw index docs/adr/ -o docs/adr/INDEX.md
+
 # Audit constitution health
 iil-adrfw audit docs/adr/
 

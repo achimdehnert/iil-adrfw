@@ -69,7 +69,7 @@ argument for going advisory-first). Reproduce locally:
 | `cross_repo/` | cross-repo claim validation |
 | `freshness/` | repo-vs-ADR drift checks |
 | `metrics/` | Schema v4 controlling metrics (`iil-adrfw metrics`) |
-| `index/` | INDEX.md table renderer (ADR-138) — not yet wired into the CLI or MCP server |
+| `index/` | INDEX.md table renderer (ADR-138) — exposed as the `iil-adrfw index` CLI subcommand |
 | `checkers/` | AST checkers (libcst-based) |
 | `server.py` | FastMCP request models + `_do_*` handlers |
 | `cli.py` | `iil-adrfw` command-line entry point |

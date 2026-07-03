@@ -96,3 +96,48 @@ def test_should_survive_broken_frontmatter_and_untitled_files(tmp_path):
     out = render_index(tmp_path, include_header=False)
     # id resolved from filename, title from slug, status unknown
     assert "| 040 | broken | `Unknown` |" in out
+
+
+# ─── CLI subcommand: iil-adrfw index (issue #43) ─────────────────
+
+
+def test_should_render_index_via_cli_subcommand(tmp_path, capsys):
+    import argparse
+
+    import iil_adrfw.cli as cli
+
+    _write(
+        tmp_path / "ADR-007-tenant.md",
+        "---\nid: ADR-007\ntitle: Tenant architecture\nstatus: accepted\n"
+        "implementation_status: implemented\n---\n\n# ADR-007\n",
+    )
+    args = argparse.Namespace(adr_dir=str(tmp_path), include_archive=False, table_only=True, output=None)
+    assert cli._cmd_index(args) == 0
+    out = capsys.readouterr().out
+    assert out.startswith("| # | Title | Status | Impl | Link |")
+    assert "| 007 | Tenant architecture | `Accepted` | ✅ | [ADR-007](ADR-007-tenant.md) |" in out
+
+
+def test_should_write_index_to_output_file_and_include_header(tmp_path, capsys):
+    import argparse
+
+    import iil_adrfw.cli as cli
+
+    _write(tmp_path / "ADR-001-x.md", "---\nid: ADR-001\ntitle: X\nstatus: accepted\n---\nbody\n")
+    out_file = tmp_path / "INDEX.md"
+    args = argparse.Namespace(adr_dir=str(tmp_path), include_archive=False, table_only=False, output=str(out_file))
+    assert cli._cmd_index(args) == 0
+    assert "Wrote INDEX" in capsys.readouterr().out
+    written = out_file.read_text(encoding="utf-8")
+    assert written.startswith("# Architecture Decision Records -- Index")
+    assert "| 001 | X |" in written
+
+
+def test_should_exit_2_when_index_adr_dir_missing(tmp_path, capsys):
+    import argparse
+
+    import iil_adrfw.cli as cli
+
+    args = argparse.Namespace(adr_dir=str(tmp_path / "nope"), include_archive=False, table_only=True, output=None)
+    assert cli._cmd_index(args) == 2
+    assert "is not a directory" in capsys.readouterr().err
