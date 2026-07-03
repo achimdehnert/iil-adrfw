@@ -5,6 +5,16 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **MCP bi-temporal timestamps crashed on naive input (#18):** `CheckRequest.as_of`,
+  `AuditRequest.as_of` and `DiffRequest.left_time`/`right_time` accepted an ISO
+  string without an offset, which Pydantic parsed to a *naive* datetime; comparing
+  it against the tz-aware ADR dates raised `TypeError: can't compare offset-naive
+  and offset-aware datetimes`. These fields now normalize naive input to UTC via a
+  shared `UTCDateTime` annotated type (mirroring the CLI's `_parse_iso`), so the
+  MCP path behaves like the CLI. Explicit offsets are preserved.
+
 ### Security
 
 - MCP path-parameter containment (#22). Client-supplied path parameters on the

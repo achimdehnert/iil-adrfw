@@ -8,16 +8,33 @@ adr_staleness, adr_impact, adr_freshness.
 import os
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from fastmcp import FastMCP
-from pydantic import BaseModel, Field
+from pydantic import AfterValidator, BaseModel, Field
 
 from iil_adrfw.checkers import build_checker
 from iil_adrfw.domain import ADR, Rule, RuleViolation, Severity
 from iil_adrfw.persistence import load_adrs
 
 mcp = FastMCP("iil-adrfw")
+
+
+def _ensure_utc(dt: datetime) -> datetime:
+    """Normalize a naive datetime to UTC (mirrors cli._parse_iso).
+
+    MCP clients may send bi-temporal timestamps without an offset; Pydantic
+    parses those to a naive datetime. Comparing a naive value against the
+    tz-aware ADR dates downstream raises "can't compare offset-naive and
+    offset-aware datetimes", so we assume UTC for any naive input here — the
+    same assumption the CLI already makes in `_parse_iso`.
+    """
+    return dt.replace(tzinfo=UTC) if dt.tzinfo is None else dt
+
+
+# Bi-temporal timestamp fields on request models use this so a naive ISO string
+# from an MCP client is normalized to UTC before it reaches the diff/audit code.
+UTCDateTime = Annotated[datetime, AfterValidator(_ensure_utc)]
 
 
 # --- Configuration via env vars ---
@@ -75,7 +92,7 @@ class CheckRequest(BaseModel):
         description="Filter to specific rule IDs (e.g. ['ADR-099/tenant-id-bigint']). None = all applicable.",
     )
     severity_threshold: Literal["info", "warning", "error", "critical"] = "warning"
-    as_of: datetime | None = Field(
+    as_of: UTCDateTime | None = Field(
         default=None,
         description="Bi-temporal: check against the constitution as of this timestamp. None = now.",
     )
@@ -450,7 +467,7 @@ class AuditRequest(BaseModel):
             "None = all."
         ),
     )
-    as_of: datetime | None = Field(
+    as_of: UTCDateTime | None = Field(
         default=None,
         description="Timestamp for staleness/open_question_aging checks. None = now.",
     )
@@ -687,11 +704,11 @@ class DiffRequest(BaseModel):
             "'set': two distinct ADR sets/repos. Requires right_dir."
         ),
     )
-    left_time: datetime | None = Field(
+    left_time: UTCDateTime | None = Field(
         default=None,
         description="Temporal mode: left side world time (older).",
     )
-    right_time: datetime | None = Field(
+    right_time: UTCDateTime | None = Field(
         default=None,
         description="Temporal mode: right side world time (newer).",
     )
