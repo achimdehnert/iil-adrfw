@@ -58,6 +58,27 @@ def _print_json(obj) -> None:
         print(json.dumps(obj, indent=2, default=str))
 
 
+def _escape_text(s: str) -> str:
+    """Escape backslashes and collapse newlines — shared prep for any sink
+    that interpolates untrusted ADR frontmatter (title, domains, ...) into a
+    delimited output format (Graphviz DOT, Markdown tables, ...).
+
+    Backslash is escaped first so a later delimiter-specific escape (e.g.
+    `"` for DOT, `|` for Markdown) doesn't get its own backslash re-escaped.
+    """
+    return s.replace("\\", "\\\\").replace("\r\n", " ").replace("\n", " ").replace("\r", " ")
+
+
+def _escape_dot(s: str) -> str:
+    """Escape a string for safe interpolation into a quoted Graphviz DOT label."""
+    return _escape_text(s).replace('"', '\\"')
+
+
+def _escape_md_cell(s: str) -> str:
+    """Escape a string for safe interpolation into a Markdown table cell."""
+    return _escape_text(s).replace("|", "\\|")
+
+
 # ─── adr_check ──────────────────────────────────────────────────
 
 
@@ -531,8 +552,10 @@ def _cmd_graph(args: argparse.Namespace) -> int:
         }
         for meta in adrs_meta:
             color = status_colors.get(meta["status"], "#ffffff")
-            label = f"{meta['id']}\\n{meta['title']}"
-            print(f'  "{meta["id"]}" [label="{label}", fillcolor="{color}"];')
+            esc_id = _escape_dot(str(meta["id"]))
+            esc_title = _escape_dot(str(meta["title"]))
+            label = f"{esc_id}\\n{esc_title}"
+            print(f'  "{esc_id}" [label="{label}", fillcolor="{color}"];')
         edge_styles = {
             "superseded_by": "[color=red, style=dashed, label=supersedes]",
             "depends_on": "[color=blue, label=depends]",
@@ -541,7 +564,7 @@ def _cmd_graph(args: argparse.Namespace) -> int:
         }
         for src, dst, rel in edges:
             style = edge_styles.get(rel, "")
-            print(f'  "{src}" -> "{dst}" {style};')
+            print(f'  "{_escape_dot(src)}" -> "{_escape_dot(dst)}" {style};')
         print("}")
     elif args.json:
         _print_json(
@@ -647,7 +670,9 @@ def _cmd_export(args: argparse.Namespace) -> int:
     for a in adrs:
         domains = ", ".join(a["domains"][:3]) if a["domains"] else "—"
         title = a["title"][:50] + ("…" if len(a["title"]) > 50 else "")
-        lines.append(f"| {a['id']} | {title} | {a['status']} | {a['date'][:10] or '—'} | {domains} |")
+        title_cell = _escape_md_cell(title)
+        domains_cell = _escape_md_cell(domains)
+        lines.append(f"| {a['id']} | {title_cell} | {a['status']} | {a['date'][:10] or '—'} | {domains_cell} |")
     lines.append("")
 
     output = "\n".join(lines)
@@ -840,6 +865,9 @@ def main() -> None:
     except (FileNotFoundError, ValueError) as e:
         print(f"error: {e}", file=sys.stderr)
         sys.exit(2)
+    except Exception as e:
+        print(f"internal error: {e}", file=sys.stderr)
+        sys.exit(3)
 
 
 if __name__ == "__main__":

@@ -85,6 +85,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 - **`validate-cross-repo` text output crashed on conflicts**: it referenced
   non-existent `ConflictOut` fields (`severity`/`description`); now prints
   `conflict_class`/`confidence` and the `claim`. (`--json` was unaffected.)
+- Five small, independently verified logic/robustness fixes (#25): DOT-label
+  injection in `graph --dot` and Markdown-table injection in `export` (both
+  now escape `id`/`title`/`domains` via shared `_escape_dot`/`_escape_md_cell`
+  helpers before interpolation); `main()` now honors its own documented exit
+  code 3 for uncaught internal errors instead of falling through to Python's
+  default exit 1 ("findings present"); `execute_query`'s mixed
+  (domain+question) routing branch no longer assigns every candidate ADR the
+  same global `matched_concepts` set, but filters per ADR like the
+  concept-only branch already did; and `check_freshness`'s version comparison
+  now compares dotted segments instead of a naive `str.startswith`, so a
+  claim of `"1"` no longer false-matches an actual of `"18"`.
 
 ### Changed
 

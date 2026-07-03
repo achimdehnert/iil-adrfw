@@ -246,7 +246,7 @@ def execute_query(
             concept_scores = {a.id: n for a, n in concept_hits}
             primary = sorted(primary, key=lambda a: -concept_scores.get(a.id, 0))
             for a, n in concept_hits:
-                matched_concepts[a.id] = question_concepts & set(graph.by_concept.keys())
+                matched_concepts[a.id] = {c for c in question_concepts if a.id in graph.by_concept.get(c, [])}
             routing = "mixed"
         else:
             primary = [a for a, _ in concept_hits[:5]]

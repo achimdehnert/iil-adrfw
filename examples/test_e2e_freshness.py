@@ -94,3 +94,20 @@ def test_should_accept_custom_compose_and_requirements_file_lists(tmp_path):
     report = check_freshness(claims, tmp_path, compose_files=["compose.staging.yml"], requirements_files=[])
     assert len(report.stale_claims) == 1
     assert report.stale_claims[0].actual_value == "6"
+
+
+def test_should_flag_stale_when_claim_is_a_naive_string_prefix_of_actual(tmp_path):
+    # Regression B-17: `actual.startswith(claim.value)` has no segment
+    # boundary, so a claim of "1" wrongly matched an actual of "18" (it's a
+    # substring, not the same version segment).
+    (tmp_path / "docker-compose.yml").write_text("services:\n  app:\n    image: node:18\n", encoding="utf-8")
+    report = check_adr_freshness("ADR-050", "We standardize on Node 1.", tmp_path)
+    assert len(report.stale_claims) == 1
+    assert report.stale_claims[0].actual_value == "18"
+
+
+def test_should_verify_when_actual_has_extra_patch_segment_beyond_claim(tmp_path):
+    (tmp_path / "docker-compose.yml").write_text("services:\n  app:\n    image: python:3.12.4\n", encoding="utf-8")
+    report = check_adr_freshness("ADR-050", "Pinned to Python 3.12.", tmp_path)
+    assert report.stale_claims == []
+    assert report.verified_claims == 1
