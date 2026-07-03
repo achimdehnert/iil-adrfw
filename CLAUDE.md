@@ -85,11 +85,15 @@ argument for going advisory-first). Reproduce locally:
 Versioned in `pyproject.toml` + `CHANGELOG.md` (Keep a Changelog). Publish to
 PyPI is a deliberate, gated step (CI `publish.yml`, `workflow_dispatch`) — not
 automatic on merge. Keep `pyproject.version`, the CHANGELOG top entry, and the
-published PyPI version in sync.
+published PyPI version in sync — `publish.yml` enforces this with a
+`version-check` gate that fails fast if `pyproject.version` is already on PyPI
+or does not match the top versioned `## [X.Y.Z]` CHANGELOG heading. So a release
+requires bumping the version **and** cutting the `[Unreleased]` section to that
+version first.
 
 ## Known issues / gotchas
 
-- `make test` enforces `--cov-fail-under=55` (actual ~59%); raise as it improves.
+- `make test` enforces `--cov-fail-under=80` (actual ~87%); raise as it improves.
 - The main tree at `~/github/iil-adrfw` is guarded (ADR-233): start editing
   sessions via `platform/tools/repo-session.sh start <repo> --task <slug>`.
 - After a version bump in `pyproject.toml`,
