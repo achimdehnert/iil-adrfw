@@ -996,67 +996,81 @@ class StalenessResponse(BaseModel):
     broken_refs: int
     missing_reviews: int
     findings: list[dict]
+    load_errors: list[dict] = Field(
+        default_factory=list,
+        description="ADR files that failed to load (skipped from the scan), as {file, error}.",
+    )
 
 
-@mcp.tool
-def adr_staleness(req: StalenessRequest) -> StalenessResponse:
-    """Check ADRs for staleness (age > threshold) and reference drift (broken superseded_by, depends_on)."""
+def _do_staleness(adr_dir: Path, schemas_dir: Path, months: int) -> StalenessResponse:
+    """Single staleness/reference-drift implementation shared by the CLI and MCP tool.
+
+    Checks each ADR for: age past *months* threshold (stale), missing review_status
+    on accepted ADRs (no_review), and broken references — `superseded_by` (error),
+    `depends_on` (warning) and `related` (info). Files that fail to load are
+    reported in `load_errors` instead of being silently skipped.
+
+    Path resolution / containment is the caller's responsibility: the MCP tool
+    passes a `_require_within_root`-validated dir, the trusted CLI passes the
+    user's dir directly.
+    """
     from datetime import date, timedelta
 
     from iil_adrfw.persistence import load_adr
-    from iil_adrfw.schemas import get_schema_dir
 
-    adr_dir = _require_within_root(req.adr_dir, what="adr_dir") if req.adr_dir else _adrs_dir()
-    schema_dir = get_schema_dir()
     today = date.today()
-    threshold = today - timedelta(days=30 * req.months)
+    threshold = today - timedelta(days=30 * months)
 
     md_files = sorted(adr_dir.glob("ADR-*.md"))
-    findings = []
-    all_ids = set()
+    findings: list[dict] = []
+    load_errors: list[dict] = []
+    all_ids: set[str] = set()
     adrs_data = []
 
     for md in md_files:
         try:
-            adr = load_adr(md, schema_dir, validate=False)
-            all_ids.add(adr.id)
-            adrs_data.append(adr)
-
-            adr_date = None
-            if hasattr(adr, "decision_date") and adr.decision_date:
-                try:
-                    adr_date = date.fromisoformat(str(adr.decision_date)[:10])
-                except (ValueError, TypeError):
-                    pass
-
-            status = adr.status.value if hasattr(adr.status, "value") else str(adr.status)
-            if status.lower() in ("deprecated", "superseded", "rejected"):
-                continue
-
-            if adr_date and adr_date < threshold:
-                age_months = (today - adr_date).days // 30
-                findings.append(
-                    {
-                        "adr_id": adr.id,
-                        "type": "stale",
-                        "severity": "warning",
-                        "message": f"Decision date {adr_date} ({age_months}mo ago)",
-                    }
-                )
-
-            review = getattr(adr, "review_status", None)
-            if status.lower() == "accepted" and not review:
-                findings.append(
-                    {
-                        "adr_id": adr.id,
-                        "type": "no_review",
-                        "severity": "info",
-                        "message": "Accepted ADR without review_status",
-                    }
-                )
-        except Exception:
+            adr = load_adr(md, schemas_dir, validate=False)
+        except Exception as e:  # noqa: BLE001 - report, don't swallow (B-18)
+            load_errors.append({"file": md.name, "error": f"{type(e).__name__}: {e}"})
             continue
 
+        all_ids.add(adr.id)
+        adrs_data.append(adr)
+
+        adr_date = None
+        if getattr(adr, "decision_date", None):
+            try:
+                adr_date = date.fromisoformat(str(adr.decision_date)[:10])
+            except (ValueError, TypeError):
+                pass
+
+        status = adr.status.value if hasattr(adr.status, "value") else str(adr.status)
+        if status.lower() in ("deprecated", "superseded", "rejected"):
+            continue
+
+        if adr_date and adr_date < threshold:
+            age_months = (today - adr_date).days // 30
+            findings.append(
+                {
+                    "adr_id": adr.id,
+                    "type": "stale",
+                    "severity": "warning",
+                    "message": f"Last decision date {adr_date} ({age_months}mo ago, threshold: {months}mo)",
+                }
+            )
+
+        review = getattr(adr, "review_status", None)
+        if status.lower() == "accepted" and not review:
+            findings.append(
+                {
+                    "adr_id": adr.id,
+                    "type": "no_review",
+                    "severity": "info",
+                    "message": "Accepted ADR without review_status field",
+                }
+            )
+
+    # Reference drift — superseded_by (error), depends_on (warning), related (info).
     for adr in adrs_data:
         sup_by = getattr(adr, "superseded_by", None)
         if sup_by:
@@ -1069,9 +1083,33 @@ def adr_staleness(req: StalenessRequest) -> StalenessResponse:
                             "adr_id": adr.id,
                             "type": "broken_ref",
                             "severity": "error",
-                            "message": f"superseded_by '{ref_str}' not found",
+                            "message": f"superseded_by references '{ref_str}' which does not exist",
                         }
                     )
+        for dep in getattr(adr, "depends_on", None) or []:
+            if dep not in all_ids:
+                findings.append(
+                    {
+                        "adr_id": adr.id,
+                        "type": "broken_ref",
+                        "severity": "warning",
+                        "message": f"depends_on references '{dep}' which does not exist",
+                    }
+                )
+        # `related` is not a domain attribute; it lives in raw_frontmatter.
+        # (The old CLI checked getattr(adr, "related") which was always empty —
+        # dead code. Reading raw_frontmatter makes the check actually fire.)
+        raw = getattr(adr, "raw_frontmatter", {}) or {}
+        for rel in raw.get("related") or []:
+            if str(rel).startswith("ADR-") and rel not in all_ids:
+                findings.append(
+                    {
+                        "adr_id": adr.id,
+                        "type": "broken_ref",
+                        "severity": "info",
+                        "message": f"related references '{rel}' which does not exist",
+                    }
+                )
 
     return StalenessResponse(
         total_adrs=len(md_files),
@@ -1079,7 +1117,17 @@ def adr_staleness(req: StalenessRequest) -> StalenessResponse:
         broken_refs=len([f for f in findings if f["type"] == "broken_ref"]),
         missing_reviews=len([f for f in findings if f["type"] == "no_review"]),
         findings=findings,
+        load_errors=load_errors,
     )
+
+
+@mcp.tool
+def adr_staleness(req: StalenessRequest) -> StalenessResponse:
+    """Check ADRs for staleness (age > threshold) and reference drift (broken superseded_by/depends_on/related)."""
+    from iil_adrfw.schemas import get_schema_dir
+
+    adr_dir = _require_within_root(req.adr_dir, what="adr_dir") if req.adr_dir else _adrs_dir()
+    return _do_staleness(adr_dir, get_schema_dir(), req.months)
 
 
 # --- Tool: adr_impact (Code → ADR mapping) ---
