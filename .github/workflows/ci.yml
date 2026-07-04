@@ -1,91 +1,22 @@
+# ci.yml — Thin-Caller auf das ADR-226-Reusable (platform ADR-266 Stufe 2b).
+# Semantik (Lint, Secret-Scan, Test+Coverage, Build+Artefakt-Scan, pip-audit)
+# lebt zentral in platform/.github/workflows/_ci-pypi.yml — Verbesserungen
+# erreichen alle Pakete in O(1). Inputs abgeleitet aus der Vorgänger-ci.yml.
+
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
-# Least-privilege default token — this workflow only reads the repo.
 permissions:
   contents: read
 
-# Cancel superseded runs on the same ref (e.g. rapid pushes to a PR).
-concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  lint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
-      - run: pip install ruff
-      # Same command as local `make lint` (ruff check .) so CI and local agree
-      # — the old `ruff check src/` skipped examples/ and root scripts.
-      - run: make lint
-
-  types:
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
-      - run: pip install -e ".[dev]"
-      - run: make types
-
-  test:
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
-      - run: pip install -e ".[dev]"
-      # Run the full pytest suite (all examples/ modules) with the coverage gate,
-      # instead of executing only four example files as standalone scripts.
-      - run: make test
-
-  security:
-    # Advisory supply-chain gate (issue #32). Installs the project against
-    # constraints.txt (a uv-resolved, project-scoped lock of the runtime
-    # tree) so pip-audit sees exactly the iil-adrfw dependency tree, not
-    # unrelated packages from an ambient/shared environment.
-    #
-    # continue-on-error keeps this non-blocking for now, the same way
-    # `make types` was introduced as advisory before being gated: known
-    # findings so far trace to CVEs in fastmcp's transitive deps (pyjwt,
-    # cryptography, starlette, python-multipart, ...) behind the HTTP/JWT/
-    # multipart surface fastmcp exposes for its optional HTTP transport.
-    # iil-adrfw's MCP server runs over stdio (see README:89), so that
-    # surface is not on the reachable path in documented operation.
-    runs-on: ubuntu-latest
-    needs: lint
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: "pip"
-      - run: pip install -e . -c constraints.txt
-      - run: pip install pip-audit
-      - name: pip-audit (project-scoped, advisory)
-        continue-on-error: true
-        run: pip-audit -r constraints.txt
-      # Lean advisory SAST pass over our own source (not the dependency
-      # tree). Current findings are Low-severity only (assert usage,
-      # a broad except/continue) and overlap with the cleanup tracked in
-      # issue #19 — kept advisory here too until that's resolved.
-      - run: pip install bandit
-      - name: bandit (advisory)
-        continue-on-error: true
-        run: bandit -r src/iil_adrfw
+  ci:
+    uses: achimdehnert/platform/.github/workflows/_ci-pypi.yml@main
+    with:
+      python_versions: '["3.12"]'
+      install_extra: 'dev'
+      test_path: 'tests/'
