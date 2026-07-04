@@ -34,6 +34,7 @@ def _stage_fixtures() -> None:
     ]:
         shutil.copy(BASE / fn, ADRS_DIR)
 
+
 CONSUMER_REPOS = [
     ConsumerRepoSpec(name="meiki-hub", root=str(WORKSPACE / "meiki-hub")),
     ConsumerRepoSpec(name="bfagent", root=str(WORKSPACE / "bfagent")),

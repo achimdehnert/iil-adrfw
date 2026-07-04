@@ -453,9 +453,7 @@ def compute_health(graph: ConstitutionGraph, findings: list[AuditFinding]) -> He
         coverage = 1.0
     else:
         gap = sum(
-            int(m.group(1))
-            for f in coverage_findings
-            if (m := re.search(r"(\d+) have no", f.description)) is not None
+            int(m.group(1)) for f in coverage_findings if (m := re.search(r"(\d+) have no", f.description)) is not None
         )
         coverage = max(0.0, 1.0 - gap / consumers_total)
 

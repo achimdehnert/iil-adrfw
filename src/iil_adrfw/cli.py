@@ -725,7 +725,9 @@ def _add_index_parser(sub):
     p = sub.add_parser("index", help="Render the ADR INDEX.md table (ADR-138 Impl column)")
     p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
     p.add_argument(
-        "--include-archive", action="store_true", help="Include _archive/ ADRs whose number doesn't collide with a live ADR"
+        "--include-archive",
+        action="store_true",
+        help="Include _archive/ ADRs whose number doesn't collide with a live ADR",
     )
     p.add_argument(
         "--table-only", action="store_true", help="Emit only the table block (no H1/legend/next-free preamble)"
