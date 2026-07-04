@@ -25,6 +25,7 @@ def _stage_fixtures() -> None:
     ]:
         shutil.copy(BASE / fn, ADRS_DIR)
 
+
 # Build a frontmatter validator for assertion tests
 _registry = Registry()
 for sf in SCHEMAS_DIR.glob("*.json"):

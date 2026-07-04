@@ -19,6 +19,7 @@ def _stage_fixtures() -> None:
     shutil.copy(BASE / "ADR-188-unified-vector-store.md", ADRS_DIR)
     shutil.copy(BASE / "ADR-188-unified-vector-store.rules.yaml", ADRS_DIR)
 
+
 # Common fixed-section structure expected for every narrative
 EXPECTED_SECTIONS = (
     "Overview",

@@ -19,4 +19,4 @@ jobs:
     with:
       python_versions: '["3.12"]'
       install_extra: 'dev'
-      test_path: 'tests/'
+      test_path: 'examples/'

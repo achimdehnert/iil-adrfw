@@ -564,10 +564,7 @@ def load_adr(
         # containment after resolution (catches a rules_file that is itself a
         # symlink pointing outside the directory).
         if Path(rules_filename).name != rules_filename:
-            raise ADRLoadError(
-                f"{md_path}: rules_file must be a bare filename beside the ADR, "
-                f"got {rules_filename!r}"
-            )
+            raise ADRLoadError(f"{md_path}: rules_file must be a bare filename beside the ADR, got {rules_filename!r}")
         rules_path = _require_within(md_path.parent / rules_filename, md_path.parent, "rules_file")
         if rules_path.exists():
             rules = _load_rules(
