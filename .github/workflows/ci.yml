@@ -20,3 +20,8 @@ jobs:
       python_versions: '["3.12"]'
       install_extra: 'dev'
       test_path: 'examples/'
+      enable_mypy: true
+      mypy_blocking: true
+      mypy_args: 'src/iil_adrfw'
+      enable_bandit: true
+      bandit_args: '-r src/iil_adrfw'
