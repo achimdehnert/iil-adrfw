@@ -5,6 +5,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-07-05
+
 ### Added
 
 - **`iil-adrfw index` CLI subcommand (#43):** exposes the previously-unwired
@@ -13,17 +15,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   next-free preamble), `--table-only` emits just the table block, `--include-archive`
   adds non-colliding `_archive/` ADRs, `-o` writes to a file. Mirrors the
   `graph`/`export` subcommand shape.
-
-### CI
-
-- **CI hygiene (#24, B-12):** `ci.yml` now sets a least-privilege
-  `permissions: contents: read`, a `concurrency` group that cancels superseded
-  runs, and `cache: pip` on every job; the lint job runs `make lint`
-  (`ruff check .`) so CI matches local and covers `examples/` + root scripts
-  (previously `ruff check src/` only). `publish.yml` gains a `version-check`
-  gate (run before publish) that fails fast if `pyproject.version` is already
-  on PyPI or doesn't match the top versioned CHANGELOG heading — no change to
-  the publish mechanism itself, and it only runs on the manual publish dispatch.
 
 ### Changed
 
@@ -38,6 +29,13 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   `load_errors` field instead of being silently swallowed by `except: continue`.
   Path containment stays where it belongs: the MCP tool validates client dirs via
   `_require_within_root` (#22), the trusted CLI passes the user's dir directly.
+- mypy backlog driven 37 → 0; `make types` is now a required CI gate
+  (`types` job in `ci.yml`). `types-PyYAML` added to the `dev` extra.
+- **mypy tightened to `disallow_untyped_defs`:** every function in
+  `src/iil_adrfw` must now carry a type signature. 17 previously-untyped
+  functions (the CLI `_add_*_parser` builders, `_print_json`, and the
+  `_is_relevant` freshness helper) were annotated, and the flag now guards
+  against new untyped code slipping in under the zero-error `types` gate.
 
 ### Fixed
 
@@ -48,57 +46,6 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   and offset-aware datetimes`. These fields now normalize naive input to UTC via a
   shared `UTCDateTime` annotated type (mirroring the CLI's `_parse_iso`), so the
   MCP path behaves like the CLI. Explicit offsets are preserved.
-
-### Security
-
-- MCP path-parameter containment (#22). Client-supplied path parameters on the
-  MCP server (`CheckRequest.paths`, `ValidateRequest.adr_dir`,
-  `DiffRequest.right_dir`) are now validated to resolve within the sanctioned
-  repo root (`_require_within_root`, `resolve()` + `is_relative_to()`); a `../`
-  traversal or absolute escape raises `ValueError` instead of silently reading
-  outside the tree. Env-configured defaults (`_adrs_dir()` when no `adr_dir` is
-  given) remain operator-trusted. The cross-repo (`consumer_repos[].root`) and
-  freshness (`repo_path`) tools deliberately read *other* repos as their core
-  function and are intentionally not constrained; `adr_impact.file_path` is a
-  pattern-matching string, not a filesystem read.
-
-- Advisory supply-chain gate in CI (#32): a new `security` job
-  (`.github/workflows/ci.yml`) installs the project against a new
-  `constraints.txt` — a `uv`-resolved, project-scoped lock of the runtime
-  dependency tree — and runs `pip-audit` (project-scoped, not an ambient
-  environment scan) plus a lean `bandit` pass over `src/iil_adrfw`, both
-  advisory (`continue-on-error: true`) so findings can't redden the
-  pipeline yet. Re-resolving the tree via `uv` already picks up patched
-  versions of the transitive `fastmcp` deps (`pyjwt`, `cryptography`,
-  `starlette`, `python-multipart`, …) previously flagged by an ambient
-  `pip-audit` scan; those CVE paths were unreachable anyway given
-  iil-adrfw's documented stdio MCP transport.
-
-- Path containment in the ADR loader (#31). Two traversal channels are now
-  rejected before any out-of-tree read: a `rules_file` frontmatter field that
-  points at an absolute path or `../` escape (previously opened and YAML-parsed
-  arbitrary files), and an ADR markdown file that is a symlink to a target
-  outside the ADR directory (previously ingested the external file's content
-  into the ADR object, surfacing it via `list`/`export`/MCP). `rules_file` must
-  now be a bare filename beside the ADR, and both the ADR file and the resolved
-  rules path are verified to stay within the ADR directory (`resolve()` +
-  `is_relative_to()`); violations raise `ADRLoadError`.
-
-### Docs
-
-- Fixed README/CLAUDE.md drift (#23): corrected MCP tool count (11→12,
-  `adr_freshness` was missing from the list), added a `metrics --report`
-  CLI example, replaced ad-hoc test-script invocations with `make test`,
-  documented the venv setup step for PEP-668-managed hosts, added the
-  `index/` module to the CLAUDE.md module map, documented
-  `IIL_ADRFW_SCHEMAS_DIR` with a pointer to `docs/CASCADE_PIPELINE.md` and
-  the CLI exit-code contract, added a gotcha for stale `__version__` after
-  an editable-install version bump, and refreshed the stale top-of-file
-  docstrings in `server.py`/`cli.py` (skeleton wording, "8 MCP tools") to
-  reflect the actual 12 MCP tools / 14 CLI subcommands. No behavior change.
-
-### Fixed
-
 - **`check` text output crashed on violations**: it referenced non-existent
   `ViolationOut` fields (`file_path`/`line_number`/`message`); now prints
   `file:line_start` plus `expected`/`actual`. (`--json` was unaffected.)
@@ -117,10 +64,71 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
   now compares dotted segments instead of a naive `str.startswith`, so a
   claim of `"1"` no longer false-matches an actual of `"18"`.
 
-### Changed
+### Security
 
-- mypy backlog driven 37 → 0; `make types` is now a required CI gate
-  (`types` job in `ci.yml`). `types-PyYAML` added to the `dev` extra.
+- MCP path-parameter containment (#22). Client-supplied path parameters on the
+  MCP server (`CheckRequest.paths`, `ValidateRequest.adr_dir`,
+  `DiffRequest.right_dir`) are now validated to resolve within the sanctioned
+  repo root (`_require_within_root`, `resolve()` + `is_relative_to()`); a `../`
+  traversal or absolute escape raises `ValueError` instead of silently reading
+  outside the tree. Env-configured defaults (`_adrs_dir()` when no `adr_dir` is
+  given) remain operator-trusted. The cross-repo (`consumer_repos[].root`) and
+  freshness (`repo_path`) tools deliberately read *other* repos as their core
+  function and are intentionally not constrained; `adr_impact.file_path` is a
+  pattern-matching string, not a filesystem read.
+- Advisory supply-chain gate in CI (#32): a new `security` job
+  (`.github/workflows/ci.yml`) installs the project against a new
+  `constraints.txt` — a `uv`-resolved, project-scoped lock of the runtime
+  dependency tree — and runs `pip-audit` (project-scoped, not an ambient
+  environment scan) plus a lean `bandit` pass over `src/iil_adrfw`, both
+  advisory (`continue-on-error: true`) so findings can't redden the
+  pipeline yet. Re-resolving the tree via `uv` already picks up patched
+  versions of the transitive `fastmcp` deps (`pyjwt`, `cryptography`,
+  `starlette`, `python-multipart`, …) previously flagged by an ambient
+  `pip-audit` scan; those CVE paths were unreachable anyway given
+  iil-adrfw's documented stdio MCP transport.
+- Path containment in the ADR loader (#31). Two traversal channels are now
+  rejected before any out-of-tree read: a `rules_file` frontmatter field that
+  points at an absolute path or `../` escape (previously opened and YAML-parsed
+  arbitrary files), and an ADR markdown file that is a symlink to a target
+  outside the ADR directory (previously ingested the external file's content
+  into the ADR object, surfacing it via `list`/`export`/MCP). `rules_file` must
+  now be a bare filename beside the ADR, and both the ADR file and the resolved
+  rules path are verified to stay within the ADR directory (`resolve()` +
+  `is_relative_to()`); violations raise `ADRLoadError`.
+- **Bandit SAST findings triaged to zero (#50):** the reactivated `bandit` pass
+  (#49) flagged 4 Low findings, now all resolved rather than suppressed. The
+  three best-effort `try/except: pass|continue` loops in `cli.py` (`validate`
+  alias-warning detection, `graph`/`export` ADR loading) use
+  `contextlib.suppress(Exception)` (identical semantics, no B110/B112), and the
+  `assert health is not None` invariant in `server.py`'s `_do_audit` became an
+  explicit `RuntimeError` guard — correct under `python -O` (where `assert` is
+  stripped), still narrowing the type for mypy. The `ci / SAST` check is green
+  again.
+
+### CI
+
+- **CI hygiene (#24, B-12):** `ci.yml` now sets a least-privilege
+  `permissions: contents: read`, a `concurrency` group that cancels superseded
+  runs, and `cache: pip` on every job; the lint job runs `make lint`
+  (`ruff check .`) so CI matches local and covers `examples/` + root scripts
+  (previously `ruff check src/` only). `publish.yml` gains a `version-check`
+  gate (run before publish) that fails fast if `pyproject.version` is already
+  on PyPI or doesn't match the top versioned CHANGELOG heading — no change to
+  the publish mechanism itself, and it only runs on the manual publish dispatch.
+
+### Docs
+
+- Fixed README/CLAUDE.md drift (#23): corrected MCP tool count (11→12,
+  `adr_freshness` was missing from the list), added a `metrics --report`
+  CLI example, replaced ad-hoc test-script invocations with `make test`,
+  documented the venv setup step for PEP-668-managed hosts, added the
+  `index/` module to the CLAUDE.md module map, documented
+  `IIL_ADRFW_SCHEMAS_DIR` with a pointer to `docs/CASCADE_PIPELINE.md` and
+  the CLI exit-code contract, added a gotcha for stale `__version__` after
+  an editable-install version bump, and refreshed the stale top-of-file
+  docstrings in `server.py`/`cli.py` (skeleton wording, "8 MCP tools") to
+  reflect the actual 12 MCP tools / 14 CLI subcommands. No behavior change.
 
 ### Tests
 

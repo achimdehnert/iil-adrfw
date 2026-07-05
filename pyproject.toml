@@ -1,6 +1,6 @@
 [project]
 name = "iil-adrfw"
-version = "0.6.0"
+version = "0.7.0"
 description = "Architectural Decision Record framework with bi-temporal validity, AST checkers, and FastMCP integration"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -82,5 +82,8 @@ show_missing = true
 [tool.mypy]
 # Error-free and gated in CI (`types` job runs `make types`). Keep it at zero.
 # `ignore_missing_imports` clears third-party stub noise so real issues surface.
+# `disallow_untyped_defs` requires every function to carry a signature so new
+# untyped code can't slip in under the zero-error gate.
 python_version = "3.12"
 ignore_missing_imports = true
+disallow_untyped_defs = true
