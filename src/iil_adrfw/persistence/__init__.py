@@ -152,7 +152,7 @@ def _normalize_status(raw: Any) -> Any:
 def _infer_title(frontmatter: dict, body: str, md_path: Path) -> str:
     """Title inference fallback chain (Schema v3 C.5)."""
     if frontmatter.get("title"):
-        return frontmatter["title"]
+        return str(frontmatter["title"])
     # Try first H1 in body
     m = _H1_RE.search(body or "")
     if m:
