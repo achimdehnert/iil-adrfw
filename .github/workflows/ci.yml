@@ -25,3 +25,4 @@ jobs:
       mypy_args: 'src/iil_adrfw'
       enable_bandit: true
       bandit_args: '-r src/iil_adrfw'
+      bandit_blocking: true
