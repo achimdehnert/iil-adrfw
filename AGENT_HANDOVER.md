@@ -12,14 +12,18 @@
   version bump + CHANGELOG cut (enforced by the `publish.yml` version-check gate).
 - Tests: green — `make test` → **196 passed** (suite in `examples/`, order-stable).
 - Lint: `make lint` (`ruff check .`) clean, **gated** in CI. Types: `make types`
-  (mypy) — **0 errors, gated** in CI (`types` job), now with
-  **`disallow_untyped_defs = true`** so new untyped code can't slip in.
-- Coverage: `make test` enforces `--cov-fail-under=80`; current ~87.5%.
-- CI: `ci.yml` (least-privilege `permissions`, `concurrency`, pip-cache;
-  lint + types + full `make test` + `SAST` bandit + `Security Scan` pip-audit) +
-  `publish.yml` (PyPI via OIDC, `workflow_dispatch`, gated on `version-check`
-  + tests). The `ci / SAST (bandit)` check is **green** but still
-  **non-blocking** (advisory) — promoting it to blocking is a next priority.
+  (mypy) — **0 errors, gated** in CI (`types` job), with `disallow_untyped_defs`
+  plus a strict subset (`disallow_incomplete_defs`, `check_untyped_defs`,
+  `no_implicit_optional`, `strict_equality`, `warn_redundant_casts`,
+  `warn_unused_ignores`, `warn_return_any` — all clean at zero cost).
+- Coverage: `make test` enforces **`--cov-fail-under=85`** (ratcheted from 80);
+  actual ~87.5%.
+- CI: `ci.yml` (thin caller to platform `_ci-pypi.yml@main`) — lint + types +
+  full `make test` + `SAST` bandit + `Security Scan` pip-audit + build/publish-
+  vector scan; `publish.yml` (PyPI via OIDC, `workflow_dispatch`, gated on
+  `version-check` + tests). The `ci / SAST (bandit)` check is **green and now
+  BLOCKING** (`bandit_blocking: true` in ci.yml, backed by the platform input
+  added in `platform#938`).
 
 ## Recently landed (session 2026-07-05 — 0.7.0 release)
 
@@ -33,6 +37,15 @@
 - **mypy tightened to `disallow_untyped_defs` (#51):** 17 previously-untyped
   functions (CLI `_add_*_parser` builders, `_print_json`, `_is_relevant`) annotated.
 - Dependabot: GitHub Actions group bump merged (#47).
+- **Quality ratchet (#53):** coverage gate 80→85; mypy strict subset enabled
+  (7 flags, all zero-cost) + one `warn_return_any` fix in `_infer_title`.
+- **Bandit SAST → blocking (#54 + platform#938):** added a `bandit_blocking`
+  input to the shared `_ci-pypi.yml` (mirrors `mypy_blocking`, opt-in,
+  backward-compatible) and flipped iil-adrfw to `bandit_blocking: true`. A
+  future finding now fails CI + the gate. NOTE: a cosmetic follow-up
+  (**platform#941**) fixes the job name still rendering "non-blocking" — a
+  GitHub Actions `&& '' ||` empty-string ternary footgun; the job is genuinely
+  blocking regardless of the label.
 
 ## Recently landed (session 2026-07-02/03 — repo-optimize follow-through)
 
@@ -61,15 +74,18 @@
 
 ## Next priorities
 
-1. Promote the `ci / SAST (bandit)` check from advisory to **blocking** now that
-   it is green (#50 cleared all findings) — a permanently-green advisory check is
-   ripe to gate, and removes the alert-fatigue risk that a future finding goes
-   unnoticed. Same for the `pip-audit` scan once its findings stay clean.
-2. Keep ratcheting `--cov-fail-under` (currently 80, actual ~87.5%) as coverage
+1. Cut the next release (0.8.0) when enough has accumulated in `[Unreleased]` —
+   the post-0.7.0 quality work (coverage 85, mypy strict subset, bandit blocking)
+   is currently unreleased on `main`. Same drill: bump `pyproject.version`, cut
+   `[Unreleased]` → `[0.8.0]`, dispatch `publish.yml`.
+2. Promote the `pip-audit` (`Security Scan`) job to blocking once its findings
+   stay clean — same rationale as the bandit promotion just done.
+3. Keep ratcheting `--cov-fail-under` (currently 85, actual ~87.5%) as coverage
    improves.
-3. Optional further mypy strictness (e.g. `disallow_any_generics`,
-   `warn_return_any`, or full `strict = true` per module) now that
-   `disallow_untyped_defs` is in and the baseline is zero.
+4. Optional deeper mypy strictness: `disallow_any_generics` (measured: **45
+   errors** across 5 files — a focused effort, not a quick pass) and
+   `warn_unreachable` (2 hits, both *defensive* fallbacks after exhaustive
+   `Audience` enum chains in `narrate/` — decide keep-guard vs delete-dead-code).
 
 ## Pointers
 
