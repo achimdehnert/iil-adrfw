@@ -3,20 +3,36 @@
 > Living handover for the next agent/session. Keep this current; `NEXT.md` is an
 > auto-generated cache and is **not** the source of truth — this file is.
 
-## Current state (2026-07-03)
+## Current state (2026-07-05)
 
-- Version: **0.6.0** (`pyproject` + CHANGELOG top entry aligned) — **published
-  to PyPI** 2026-06-22 via Trusted Publishing (OIDC, `publish.yml`). A large
-  `[Unreleased]` section has accumulated since; next release needs a version
-  bump + CHANGELOG cut (now enforced by the `publish.yml` version-check gate).
-- Tests: green — `make test` → **193 passed** (suite in `examples/`, order-stable).
+- Version: **0.7.0** (`pyproject` + CHANGELOG top entry aligned) — **published
+  to PyPI** 2026-07-05 via Trusted Publishing (OIDC, `publish.yml`; verified live:
+  `iil_adrfw-0.7.0-py3-none-any.whl` in the simple index with provenance
+  attestation). `[Unreleased]` is empty again — the next release needs a fresh
+  version bump + CHANGELOG cut (enforced by the `publish.yml` version-check gate).
+- Tests: green — `make test` → **196 passed** (suite in `examples/`, order-stable).
 - Lint: `make lint` (`ruff check .`) clean, **gated** in CI. Types: `make types`
-  (mypy) — **0 errors, gated** in CI (`types` job).
-- Coverage: `make test` enforces `--cov-fail-under=80`; current ~87%.
+  (mypy) — **0 errors, gated** in CI (`types` job), now with
+  **`disallow_untyped_defs = true`** so new untyped code can't slip in.
+- Coverage: `make test` enforces `--cov-fail-under=80`; current ~87.5%.
 - CI: `ci.yml` (least-privilege `permissions`, `concurrency`, pip-cache;
-  lint + types + full `make test` + advisory `security` supply-chain job) +
+  lint + types + full `make test` + `SAST` bandit + `Security Scan` pip-audit) +
   `publish.yml` (PyPI via OIDC, `workflow_dispatch`, gated on `version-check`
-  + tests).
+  + tests). The `ci / SAST (bandit)` check is **green** but still
+  **non-blocking** (advisory) — promoting it to blocking is a next priority.
+
+## Recently landed (session 2026-07-05 — 0.7.0 release)
+
+- **Released 0.7.0 to PyPI** — cut `[Unreleased]` → `[0.7.0]`, consolidated the
+  split Fixed/Changed subsections (#51).
+- **Bandit SAST → green (#51, closes #50):** the 4 Low findings from the #49
+  reactivation are fixed, not suppressed — `contextlib.suppress(Exception)` for
+  the three best-effort `try/except` loops in `cli.py`; the `assert health is
+  not None` in `server.py` `_do_audit` became an explicit `RuntimeError` guard
+  (correct under `python -O`, still narrows for mypy).
+- **mypy tightened to `disallow_untyped_defs` (#51):** 17 previously-untyped
+  functions (CLI `_add_*_parser` builders, `_print_json`, `_is_relevant`) annotated.
+- Dependabot: GitHub Actions group bump merged (#47).
 
 ## Recently landed (session 2026-07-02/03 — repo-optimize follow-through)
 
@@ -45,13 +61,15 @@
 
 ## Next priorities
 
-1. Cut a release: bump `pyproject.version` (e.g. 0.7.0) and move the
-   `[Unreleased]` CHANGELOG section under it, then dispatch `publish.yml`
-   (the version-check gate now requires this).
-2. Keep ratcheting coverage as it improves; consider promoting the advisory
-   `security` (pip-audit/bandit) job to gating once findings are clean.
-3. Consider tightening mypy (e.g. `disallow_untyped_defs` per module) now that
-   the baseline is zero.
+1. Promote the `ci / SAST (bandit)` check from advisory to **blocking** now that
+   it is green (#50 cleared all findings) — a permanently-green advisory check is
+   ripe to gate, and removes the alert-fatigue risk that a future finding goes
+   unnoticed. Same for the `pip-audit` scan once its findings stay clean.
+2. Keep ratcheting `--cov-fail-under` (currently 80, actual ~87.5%) as coverage
+   improves.
+3. Optional further mypy strictness (e.g. `disallow_any_generics`,
+   `warn_return_any`, or full `strict = true` per module) now that
+   `disallow_untyped_defs` is in and the baseline is zero.
 
 ## Pointers
 
