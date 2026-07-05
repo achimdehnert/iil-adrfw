@@ -507,7 +507,8 @@ def _do_audit(req: AuditRequest) -> AuditResponse:
     graph = ConstitutionGraph.build(adrs)
     report = run_audit(graph, auditors=req.auditors, now=req.as_of)
     health = report.health
-    assert health is not None  # run_audit always computes a HealthSnapshot
+    if health is None:  # run_audit always computes a HealthSnapshot; guard for -O safety + mypy narrowing
+        raise RuntimeError("run_audit did not compute a HealthSnapshot")
 
     return AuditResponse(
         auditors_run=list(report.auditors_run),
@@ -1301,7 +1302,7 @@ def adr_freshness(req: FreshnessRequest) -> FreshnessResponse:
     # Derive repo name from path for relevance filtering
     repo_name = repo_root.name  # e.g. "dev-hub"
 
-    def _is_relevant(adr) -> bool:
+    def _is_relevant(adr: ADR) -> bool:
         """ADR is relevant if it targets this repo, or is platform-wide."""
         if req.adr_id and adr.id == req.adr_id:
             return True

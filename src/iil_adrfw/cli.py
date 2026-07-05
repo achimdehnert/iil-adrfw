@@ -13,6 +13,7 @@ JSON output (`--json`) is intended for CI pipelines. Text output is for humans.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import json
 import sys
 from datetime import UTC, datetime
@@ -51,7 +52,7 @@ def _parse_iso(s: str) -> datetime:
     return dt
 
 
-def _print_json(obj) -> None:
+def _print_json(obj: Any) -> None:
     if hasattr(obj, "model_dump_json"):
         print(obj.model_dump_json(indent=2))
     else:
@@ -189,7 +190,7 @@ def _cmd_validate_cross_repo(args: argparse.Namespace) -> int:
     return 1 if resp.has_blocking_conflicts else 0
 
 
-def _add_validate_cross_repo_parser(sub):
+def _add_validate_cross_repo_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("validate-cross-repo", help="Validate an ADR's rules against consumer repos")
     p.add_argument("--adr-id", required=True, dest="adr_id", help="ADR to validate, e.g. 'ADR-188'")
     p.add_argument(
@@ -382,12 +383,10 @@ def _cmd_validate(args: argparse.Namespace) -> int:
             failures.append((md.name, f"{type(e).__name__}: {str(e)[:100]}"))
         # Deprecation warnings: non-canonical alias keys are accepted (normalized)
         # but should migrate to the canonical form. Never affects pass/fail.
-        try:
+        with contextlib.suppress(Exception):
             aliases = detect_legacy_aliases(original_frontmatter(md))
             if aliases:
                 alias_warnings.append((md.name, aliases))
-        except Exception:
-            pass
 
     total = len(ok) + len(failures)
     pct = 100 * len(ok) / total if total else 0
@@ -474,7 +473,7 @@ def _cmd_staleness(args: argparse.Namespace) -> int:
 # ─── Argument parser ────────────────────────────────────────────
 
 
-def _add_staleness_parser(sub):
+def _add_staleness_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("staleness", help="Check ADRs for staleness and reference drift")
     p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
     p.add_argument("--months", type=int, default=6, help="Staleness threshold in months (default: 6)")
@@ -504,7 +503,7 @@ def _cmd_graph(args: argparse.Namespace) -> int:
     adrs_meta: list[dict[str, Any]] = []
 
     for md in md_files:
-        try:
+        with contextlib.suppress(Exception):
             adr = load_adr(md, schema_dir, validate=False)
             adrs_meta.append(
                 {
@@ -517,8 +516,6 @@ def _cmd_graph(args: argparse.Namespace) -> int:
                     "amends": getattr(adr, "amends", None) or [],
                 }
             )
-        except Exception:
-            continue
 
     # Build edges
     edges = []
@@ -591,7 +588,7 @@ def _cmd_graph(args: argparse.Namespace) -> int:
     return 0
 
 
-def _add_graph_parser(sub):
+def _add_graph_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("graph", help="Generate ADR dependency graph")
     p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
     p.add_argument(
@@ -622,7 +619,7 @@ def _cmd_export(args: argparse.Namespace) -> int:
     md_files = sorted(adr_dir.glob("ADR-*.md"))
     adrs: list[dict[str, Any]] = []
     for md in md_files:
-        try:
+        with contextlib.suppress(Exception):
             adr = load_adr(md, schema_dir, validate=False)
             status = adr.status.value if hasattr(adr.status, "value") else str(adr.status)
             adrs.append(
@@ -635,8 +632,6 @@ def _cmd_export(args: argparse.Namespace) -> int:
                     "scope": str(getattr(adr, "scope", "") or ""),
                 }
             )
-        except Exception:
-            continue
 
     # Generate markdown
     lines = [
@@ -686,7 +681,7 @@ def _cmd_export(args: argparse.Namespace) -> int:
     return 0
 
 
-def _add_export_parser(sub):
+def _add_export_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("export", help="Export ADR registry as Outline-compatible markdown")
     p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
     p.add_argument(
@@ -721,7 +716,7 @@ def _cmd_index(args: argparse.Namespace) -> int:
     return 0
 
 
-def _add_index_parser(sub):
+def _add_index_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("index", help="Render the ADR INDEX.md table (ADR-138 Impl column)")
     p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
     p.add_argument(
@@ -736,7 +731,7 @@ def _add_index_parser(sub):
     p.set_defaults(func=_cmd_index)
 
 
-def _add_validate_parser(sub):
+def _add_validate_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("validate", help="Validate ADR frontmatter against schema v3")
     p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
     p.add_argument(
@@ -746,7 +741,7 @@ def _add_validate_parser(sub):
     p.set_defaults(func=_cmd_validate)
 
 
-def _add_check_parser(sub):
+def _add_check_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("check", help="Run rules against code paths")
     p.add_argument("paths", nargs="+")
     p.add_argument("--rule", action="append", default=[], help="Filter to specific rule ids (repeatable)")
@@ -756,7 +751,7 @@ def _add_check_parser(sub):
     p.set_defaults(func=_cmd_check)
 
 
-def _add_explain_parser(sub):
+def _add_explain_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("explain", help="Explain a rule for an audience")
     p.add_argument("rule_id")
     p.add_argument("--audience", default="senior", choices=["new_dev", "senior", "architect", "auditor"])
@@ -764,13 +759,13 @@ def _add_explain_parser(sub):
     p.set_defaults(func=_cmd_explain)
 
 
-def _add_list_parser(sub):
+def _add_list_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("list", help="List ADRs in the constitution")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=_cmd_list)
 
 
-def _add_query_parser(sub):
+def _add_query_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("query", help="Query the constitution by question/domain/path")
     p.add_argument("--question", help="Natural-language question")
     p.add_argument("--domain", help="Limit to specific domain tag")
@@ -779,7 +774,7 @@ def _add_query_parser(sub):
     p.set_defaults(func=_cmd_query)
 
 
-def _add_audit_parser(sub):
+def _add_audit_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("audit", help="Run constitution-level audit")
     p.add_argument("--auditor", action="append", default=[], help="Run only specific auditors (repeatable)")
     p.add_argument("--as-of", help="ISO timestamp; audit constitution as of this time")
@@ -787,7 +782,7 @@ def _add_audit_parser(sub):
     p.set_defaults(func=_cmd_audit)
 
 
-def _add_propose_parser(sub):
+def _add_propose_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("propose", help="Propose a new ADR (returns frontmatter + body prompt)")
     p.add_argument("--title", required=True)
     p.add_argument(
@@ -799,7 +794,7 @@ def _add_propose_parser(sub):
     p.set_defaults(func=_cmd_propose)
 
 
-def _add_diff_parser(sub):
+def _add_diff_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("diff", help="Diff constitution between times or sets")
     p.add_argument("--mode", required=True, choices=["temporal", "set"])
     p.add_argument("--left-time", help="Temporal mode: ISO timestamp (older)")
@@ -811,7 +806,7 @@ def _add_diff_parser(sub):
     p.set_defaults(func=_cmd_diff)
 
 
-def _add_narrate_parser(sub):
+def _add_narrate_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("narrate", help="Compose audience-tailored narrative")
     p.add_argument("--audience", default="senior", choices=["new_dev", "senior", "architect", "auditor"])
     p.add_argument("--domain", help="Pick ADRs by domain tag")
@@ -867,7 +862,7 @@ def _cmd_metrics(args: argparse.Namespace) -> int:
     return 0
 
 
-def _add_metrics_parser(sub):
+def _add_metrics_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("metrics", help="Compute Schema v4 metrics (inbound_links, ttd, ttr, ai_interactions)")
     p.add_argument("--adr-dir", default=None, help="ADR directory (default: $IIL_ADRFW_ADRS_DIR or ./docs/adr)")
     p.add_argument("--schema-dir", default=None)
