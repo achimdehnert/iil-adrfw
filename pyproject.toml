@@ -65,9 +65,10 @@ ignore = ["E501", "UP042"]
 testpaths = ["examples"]
 # Coverage gate ratchets up as coverage improves; never lower it silently.
 # 55->70 after in-process cli.py tests (#20); 70->80 after metrics/index/
-# freshness module tests took actual coverage ~74% -> ~82.5%. Floor kept a
-# few points below actual to absorb pytest-randomly reordering effects.
-addopts = "--cov=iil_adrfw --cov-report=term-missing --cov-fail-under=80"
+# freshness module tests took actual coverage ~74% -> ~82.5%; 80->85 with
+# actual at ~87.5%. Floor kept a few points below actual to absorb
+# pytest-randomly reordering effects.
+addopts = "--cov=iil_adrfw --cov-report=term-missing --cov-fail-under=85"
 # ADR-057 test naming convention (test_should_<expected_behavior>), enforced
 # via iil-testkit. All examples/*.py tests were renamed to conform (#26);
 # "error" hard-fails collection on any future regression instead of warning.
@@ -83,7 +84,17 @@ show_missing = true
 # Error-free and gated in CI (`types` job runs `make types`). Keep it at zero.
 # `ignore_missing_imports` clears third-party stub noise so real issues surface.
 # `disallow_untyped_defs` requires every function to carry a signature so new
-# untyped code can't slip in under the zero-error gate.
+# untyped code can't slip in under the zero-error gate; the flags below are the
+# subset of `strict` that is already clean here (zero errors) — they harden the
+# gate without a code-churn cost. `disallow_any_generics` (45 errors) and
+# `warn_unreachable` (2 defensive enum fallbacks) are deliberately deferred.
 python_version = "3.12"
 ignore_missing_imports = true
 disallow_untyped_defs = true
+disallow_incomplete_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+strict_equality = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
