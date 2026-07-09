@@ -78,6 +78,31 @@ entries and no `reviewed_by` entries has **Bus Factor = 1**.
 This makes the knowledge concentration risk **visible** instead of hiding it by
 counting AI tools as human reviewers.
 
+### New Field: `external_sparring_by` — external, cross-provider adversarial review
+
+Distinct from `ai_sparring_by` (internal AI tool contributions **during drafting**):
+`external_sparring_by` records a deliberately **different-provider** adversarial second
+opinion obtained via the `/adr-handoff-extern` flow — used as a **governance step before
+`accepted`**. Also **non-accountable** (does NOT satisfy `reviewed_by`).
+
+Accepts the compact string form the skill writes, or a structured array:
+
+```yaml
+external_sparring_by: two-external-llms@2026-07-09      # compact "<provider>@<YYYY-MM-DD>"
+# or structured:
+external_sparring_by:
+  - provider: openai/o3
+    date: 2026-07-09
+    verdict: revise                # accept | revise | reject
+    findings_ref: "#externe-zweitmeinung"   # anchor to the tag table in the ADR body
+    summary: "Phase not fail-closed; review-debt on prod promotion"  # optional, max 500
+```
+
+Rationale: the external cross-provider review is its own discipline (own briefing, tag
+table, durable audit) — folding it into `ai_sparring_by` would blur internal drafting help
+with external adversarial governance. `consumed_by` is intentionally **not** added: the
+reverse of a consumer's `depends_on` is that `depends_on` itself (canonical direction).
+
 ---
 
 ### New Field: `metrics` (auto-computed)
