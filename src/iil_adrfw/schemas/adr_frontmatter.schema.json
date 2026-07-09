@@ -285,6 +285,13 @@
       "description": "Schema v4: AI tool contributions. Non-accountable — does NOT satisfy reviewed_by. Bus Factor=1 if reviewed_by is empty regardless of ai_sparring_by content.",
       "items": { "$ref": "#/$defs/AISparring" }
     },
+    "external_sparring_by": {
+      "description": "Schema v4: External, cross-provider adversarial second opinion(s) via the /adr-handoff-extern flow. Distinct from ai_sparring_by (internal AI tool contributions during drafting): these are deliberately DIFFERENT-provider reviews used as a governance step before 'accepted'. Non-accountable — does NOT satisfy reviewed_by. Accepts the compact string form '<provider>@<YYYY-MM-DD>' (as written by the skill) or a structured array.",
+      "oneOf": [
+        { "type": "string", "pattern": "^[^@]+@[0-9]{4}-[0-9]{2}-[0-9]{2}$" },
+        { "type": "array", "items": { "$ref": "#/$defs/ExternalSparring" } }
+      ]
+    },
     "metrics": {
       "type": ["object", "null"],
       "description": "Schema v4: Auto-computed by adrfw nightly. Do NOT edit manually.",
@@ -534,6 +541,19 @@
         "tool": { "type": "string", "enum": ["cascade", "claude-code", "copilot", "other"] },
         "date": { "type": "string", "format": "date" },
         "role": { "type": "string", "enum": ["compliance-check", "adversarial-review", "drafting"] },
+        "summary": { "type": "string", "maxLength": 500 }
+      }
+    },
+    "ExternalSparring": {
+      "type": "object",
+      "required": ["provider", "date"],
+      "additionalProperties": false,
+      "description": "Schema v4: One external, cross-provider adversarial review obtained via /adr-handoff-extern. Non-accountable — does NOT satisfy reviewed_by.",
+      "properties": {
+        "provider": { "type": "string", "description": "External model/provider, e.g. 'openai/o3', 'gemini', or 'two-external-llms' when aggregated." },
+        "date": { "type": "string", "format": "date" },
+        "verdict": { "type": "string", "enum": ["accept", "revise", "reject"], "description": "Overall recommendation of the external review." },
+        "findings_ref": { "type": "string", "description": "Pointer to the tag-table / findings (ADR body section anchor or ~/shared briefing path)." },
         "summary": { "type": "string", "maxLength": 500 }
       }
     }
