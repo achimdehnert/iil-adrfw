@@ -441,6 +441,50 @@ amended: "2025-12-01"
 
 
 # ─────────────────────────────────────────────────────────────
+# Klickdummy fields (platform:ADR-211) — Fleet-Audit F-2, 2026-07-10
+# ─────────────────────────────────────────────────────────────
+
+
+def test_should_accept_klickdummy_class_and_conforms_to_fields():
+    """class/conforms_to/extension_review_required/sister_of validate under strict mode."""
+    _cleanup()
+    extra = """class: mock
+conforms_to: "platform:ADR-211"
+extension_review_required: true
+sister_of: []
+"""
+    _stage("ADR-502.md", _BASE.format(nnn="502", extra=extra))
+    adrs = load_adrs(ADRS_DIR, SCHEMAS_DIR, validate=True)
+    assert len(adrs) == 1
+    assert adrs[0].raw_frontmatter.get("class") == "mock"
+    assert adrs[0].raw_frontmatter.get("conforms_to") == "platform:ADR-211"
+    print("  PASS: class/conforms_to/extension_review_required/sister_of accepted")
+
+
+def test_should_reject_unknown_klickdummy_class_value():
+    """class outside the ADR-211 Rev 11 enum is rejected, not silently accepted."""
+    _cleanup()
+    _stage("ADR-503.md", _BASE.format(nnn="503", extra="class: not-a-real-class\n"))
+    try:
+        load_adrs(ADRS_DIR, SCHEMAS_DIR, validate=True)
+        raise AssertionError("expected ADRLoadError for invalid class enum")
+    except ADRLoadError:
+        pass
+    print("  PASS: invalid class value rejected")
+
+
+def test_should_normalize_sunset_after_date_object_to_string():
+    """YAML auto-parses unquoted dates as datetime.date — sunset_after must be
+    stringified like the other date fields (C.1b), otherwise the schema's
+    'type: string' check rejects a valid ADR (Fleet-Audit F-2 root cause)."""
+    _cleanup()
+    _stage("ADR-504.md", _BASE.format(nnn="504", extra="sunset_after: 2027-06-16\n"))
+    adrs = load_adrs(ADRS_DIR, SCHEMAS_DIR, validate=True)
+    assert adrs[0].raw_frontmatter.get("sunset_after") == "2027-06-16"
+    print("  PASS: sunset_after date object normalized to ISO string")
+
+
+# ─────────────────────────────────────────────────────────────
 # Test runner
 # ─────────────────────────────────────────────────────────────
 
@@ -471,6 +515,9 @@ if __name__ == "__main__":
         ("review_status enum", test_should_reject_invalid_review_status_enum_value),
         ("glossary now rejected", test_should_reject_removed_glossary_field),
         ("realistic legacy ADR", test_should_normalize_all_legacy_quirks_in_realistic_adr),
+        ("klickdummy fields accepted", test_should_accept_klickdummy_class_and_conforms_to_fields),
+        ("klickdummy class enum rejected", test_should_reject_unknown_klickdummy_class_value),
+        ("sunset_after normalized", test_should_normalize_sunset_after_date_object_to_string),
     ]
     print("=" * 70)
     print(f"Schema v3 tests — {len(tests)} cases")
