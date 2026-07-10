@@ -197,7 +197,15 @@ def _normalize_frontmatter(
                 frontmatter.pop(legacy)
 
     # C.1b — Date fields: YAML auto-parses dates as datetime.date, schema expects strings
-    for date_field in ("decision_date", "last_reviewed", "updated", "valid_from", "valid_to", "knowledge_from", "sunset_after"):
+    for date_field in (
+        "decision_date",
+        "last_reviewed",
+        "updated",
+        "valid_from",
+        "valid_to",
+        "knowledge_from",
+        "sunset_after",
+    ):
         v = frontmatter.get(date_field)
         if v is not None and not isinstance(v, str):
             frontmatter[date_field] = str(v)[:10] if hasattr(v, "year") else str(v)
