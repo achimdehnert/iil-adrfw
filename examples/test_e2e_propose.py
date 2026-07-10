@@ -327,6 +327,91 @@ def test_should_silence_missed_supersession_warning_when_supersedes_given():
     print("\nPASS: explicit supersedes silences the heuristic\n")
 
 
+def test_should_auto_derive_repo_from_cwd_git_checkout(tmp_path, monkeypatch):
+    print("=" * 70)
+    print("TEST: repo auto-derived from CWD's git checkout name (ADR-259 R2-REC-4)")
+    print("=" * 70)
+    checkout = tmp_path / "some-hub"
+    (checkout / ".git").mkdir(parents=True)
+    monkeypatch.chdir(checkout)
+
+    resp = _do_propose(
+        ProposeRequest(
+            title="Use Celery for background task scheduling",
+            domains=["celery"],
+            deciders=["Achim"],
+            rationale_summary="Need a robust scheduler for background tasks across the polyrepo.",
+        )
+    )
+    assert resp.frontmatter.get("repo") == "some-hub"
+    print(f"  Auto-derived repo:  {resp.frontmatter.get('repo')}")
+    print("\nPASS: repo auto-derived from CWD\n")
+
+
+def test_should_prefer_explicit_repo_over_cwd_derivation(tmp_path, monkeypatch):
+    print("=" * 70)
+    print("TEST: explicit repo= wins over CWD auto-derivation")
+    print("=" * 70)
+    checkout = tmp_path / "cwd-derived-name"
+    (checkout / ".git").mkdir(parents=True)
+    monkeypatch.chdir(checkout)
+
+    resp = _do_propose(
+        ProposeRequest(
+            title="Use Celery for background task scheduling",
+            domains=["celery"],
+            deciders=["Achim"],
+            rationale_summary="Need a robust scheduler for background tasks across the polyrepo.",
+            repo="explicitly-given-repo",
+        )
+    )
+    assert resp.frontmatter.get("repo") == "explicitly-given-repo"
+    print(f"  repo (explicit wins): {resp.frontmatter.get('repo')}")
+    print("\nPASS: explicit repo overrides CWD derivation\n")
+
+
+def test_should_resolve_repo_name_from_adr233_session_worktree(tmp_path, monkeypatch):
+    print("=" * 70)
+    print("TEST: platform:ADR-233 session-worktree layout resolves to the real repo name")
+    print("=" * 70)
+    # Mirrors ~/.repo-session/worktrees/<repo>/<session-slug>/ — the git-root
+    # itself is the ephemeral session-slug dir, NOT the repo name.
+    session_worktree = tmp_path / ".repo-session" / "worktrees" / "iil-adrfw" / "2026-07-10-achim-adr259-054959"
+    (session_worktree / ".git").mkdir(parents=True)  # worktree .git is a file in real git; dir is enough here
+    monkeypatch.chdir(session_worktree)
+
+    resp = _do_propose(
+        ProposeRequest(
+            title="Use Celery for background task scheduling",
+            domains=["celery"],
+            deciders=["Achim"],
+            rationale_summary="Need a robust scheduler for background tasks across the polyrepo.",
+        )
+    )
+    assert resp.frontmatter.get("repo") == "iil-adrfw"
+    print(f"  Resolved repo (via worktree layout): {resp.frontmatter.get('repo')}")
+    print("\nPASS: session-worktree layout resolves to real repo name, not session slug\n")
+
+
+def test_should_omit_repo_when_cwd_is_not_a_git_checkout(tmp_path, monkeypatch):
+    print("=" * 70)
+    print("TEST: no crash, repo omitted when CWD isn't inside a git checkout")
+    print("=" * 70)
+    monkeypatch.chdir(tmp_path)  # no .git anywhere under tmp_path
+
+    resp = _do_propose(
+        ProposeRequest(
+            title="Use Celery for background task scheduling",
+            domains=["celery"],
+            deciders=["Achim"],
+            rationale_summary="Need a robust scheduler for background tasks across the polyrepo.",
+        )
+    )
+    assert "repo" not in resp.frontmatter
+    print("  repo key absent (degrades silently, per ADR-259 'offline → degradiert')")
+    print("\nPASS: graceful degradation outside a git checkout\n")
+
+
 if __name__ == "__main__":
     test_should_generate_schema_valid_frontmatter_for_basic_proposal()
     test_should_allocate_next_available_adr_id()
