@@ -275,6 +275,30 @@
       "default": "adr",
       "description": "Schema v4: Document type discriminator. Files in docs/adr/ MUST have doc_type: adr. Prevents misclassification of plans/reviews as ADRs (see ADR-181/182 incident)."
     },
+    "class": {
+      "type": "string",
+      "enum": ["mock", "stub-demo", "story", "spec-demo"],
+      "description": "Klickdummy artifact class per platform:ADR-211 Rev 11 I2. 'mock' = no backend, 'stub-demo' = partial wiring, 'story' = narrative walkthrough, 'spec-demo' = spec-driven render. Only meaningful together with 'conforms_to'."
+    },
+    "conforms_to": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*:ADR-[0-9]{3,4}$",
+      "description": "Cross-repo ADR reference this document conforms to, format 'repo:ADR-NNN' (e.g. 'platform:ADR-211'). Distinct from 'supersedes'/'related' (same-decision-space refs) — this points to a governing standard in a different repo."
+    },
+    "sunset_after": {
+      "type": "string",
+      "format": "date",
+      "description": "Klickdummy per platform:ADR-211: date after which this mock/demo artifact is expected to be retired or re-reviewed. Distinct from 'valid_to' (decision validity) — this is artifact-lifecycle, not decision-lifecycle."
+    },
+    "extension_review_required": {
+      "type": "boolean",
+      "description": "Klickdummy per platform:ADR-211: true if extending this artifact's scope requires a review gate before merge, regardless of 'status'."
+    },
+    "sister_of": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ADRRef" },
+      "description": "Klickdummy per platform:ADR-211: sibling ADRs in the same local Klickdummy tree (I1 hierarchical structure) — distinct from 'related' (informational cross-link) and 'supersedes' (replacement). Empty array is valid (first local ADR in a repo)."
+    },
     "reviewed_by": {
       "type": "array",
       "description": "Schema v4: Human reviewers only. AI tools MUST NOT appear here — use ai_sparring_by instead. Empty = Bus Factor visible. WARNING when status=accepted and empty (Karenzzeit until 2026-11-10).",
