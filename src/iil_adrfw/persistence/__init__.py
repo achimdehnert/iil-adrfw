@@ -68,6 +68,37 @@ def original_frontmatter(md_path: Path) -> dict:
     return yaml.safe_load(m.group(1)) or {}
 
 
+def derive_repo_slug(path: Path) -> str | None:
+    """Repo slug for ADR-259's `<repo>:ADR-NNN` scheme: the flat `~/github/<repo>`
+    directory name (ADR-259 Rev 2, R2-REC-4/"Repo-Slug-Namespace"). Walks up from
+    `path` to the nearest `.git` marker (dir for a normal checkout, file for a
+    git worktree) and returns the repo name.
+
+    Returns None if `path` isn't inside a git checkout — callers degrade
+    gracefully (auto-derive skipped, path-consistency check skipped) rather than
+    erroring, consistent with ADR-259's "offline ohne Index → degradiert" stance.
+    """
+    for candidate in (path, *path.parents):
+        if (candidate / ".git").exists():
+            return _repo_name_from_git_root(candidate)
+    return None
+
+
+def _repo_name_from_git_root(git_root: Path) -> str:
+    """A normal checkout's git-root IS the repo directory — its own name is the
+    slug. platform:ADR-233 session-worktrees are the one standard exception:
+    they live at `~/.repo-session/worktrees/<repo>/<session-slug>/`, so the
+    git-root itself is named after the ephemeral session slug, not the repo.
+    Recognize that specific layout and resolve one level up instead — worktree-
+    based editing is this org's default editing mode (ADR-233), so getting this
+    wrong would misfire on the common case, not an edge case.
+    """
+    worktrees_dir, repo_dir = git_root.parent.parent, git_root.parent
+    if worktrees_dir.name == "worktrees" and worktrees_dir.parent.name == ".repo-session":
+        return repo_dir.name
+    return git_root.name
+
+
 def detect_legacy_aliases(frontmatter: dict) -> list[tuple[str, str]]:
     """Return [(legacy_key, canonical_key)] for every non-canonical alias present.
 

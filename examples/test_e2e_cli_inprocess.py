@@ -107,6 +107,41 @@ def test_should_list_failure_when_frontmatter_is_missing(tmp_path, capsys):
     assert "ADR-001-broken.md" in out
 
 
+def test_should_warn_but_not_fail_on_path_repo_mismatch(tmp_path, capsys):
+    """ADR-259 Rev 2, R2-REC-4: frontmatter 'repo' vs. actual checkout name
+    is a warning (moved/renamed/vendored file), never blocks validate."""
+    repo_root = tmp_path / "renamed-hub"
+    (repo_root / ".git").mkdir(parents=True)
+    adr_dir = _copy_adr_fixtures_into(repo_root / "docs" / "adr", "ADR-099-multi-tenancy")
+    fixture = adr_dir / "ADR-099-multi-tenancy.md"
+    fixture.write_text(
+        fixture.read_text(encoding="utf-8").replace("id: ADR-099\n", "id: ADR-099\nrepo: original-hub\n", 1),
+        encoding="utf-8",
+    )
+    args = _ns(adr_dir=str(adr_dir), schema_dir=None, json=False)
+
+    assert cli._cmd_validate(args) == 0  # warning only — schema is still valid, exit code unaffected
+    out = capsys.readouterr().out
+    assert "PATH-REPO MISMATCH (1)" in out
+    assert "frontmatter repo='original-hub' but located in 'renamed-hub'" in out
+
+
+def test_should_stay_silent_when_frontmatter_repo_matches_checkout(tmp_path, capsys):
+    repo_root = tmp_path / "original-hub"
+    (repo_root / ".git").mkdir(parents=True)
+    adr_dir = _copy_adr_fixtures_into(repo_root / "docs" / "adr", "ADR-099-multi-tenancy")
+    fixture = adr_dir / "ADR-099-multi-tenancy.md"
+    fixture.write_text(
+        fixture.read_text(encoding="utf-8").replace("id: ADR-099\n", "id: ADR-099\nrepo: original-hub\n", 1),
+        encoding="utf-8",
+    )
+    args = _ns(adr_dir=str(adr_dir), schema_dir=None, json=False)
+
+    assert cli._cmd_validate(args) == 0
+    out = capsys.readouterr().out
+    assert "PATH-REPO MISMATCH" not in out
+
+
 # ─── staleness ──────────────────────────────────────────────────
 
 
@@ -448,7 +483,7 @@ def test_should_print_propose_frontmatter_and_exit_1_when_blocking(monkeypatch, 
         runtime_ms=1,
     )
     monkeypatch.setattr(cli, "_do_propose", lambda req: resp)
-    args = _ns(title="New rule", rationale="a" * 25, domain=["test"], decider=["Achim"], json=False)
+    args = _ns(title="New rule", rationale="a" * 25, domain=["test"], decider=["Achim"], repo=None, json=False)
 
     assert cli._cmd_propose(args) == 1
     out = capsys.readouterr().out

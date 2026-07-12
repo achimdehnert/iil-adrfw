@@ -268,6 +268,7 @@ def _cmd_propose(args: argparse.Namespace) -> int:
         domains=args.domain,
         deciders=args.decider,
         rationale_summary=args.rationale,
+        repo=args.repo,
     )
     resp = _do_propose(req)
     if args.json:
@@ -352,6 +353,7 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     """Validate ADR frontmatter against schema v3."""
     from iil_adrfw.persistence import (
         ADRLoadError,
+        derive_repo_slug,
         detect_legacy_aliases,
         load_adr,
         original_frontmatter,
@@ -372,6 +374,7 @@ def _cmd_validate(args: argparse.Namespace) -> int:
 
     ok, failures = [], []
     alias_warnings = []  # (file, [(legacy, canonical), ...])
+    path_mismatches = []  # (file, frontmatter_repo, path_derived_repo)
     for md in md_files:
         try:
             load_adr(md, schema_dir, validate=True)
@@ -387,6 +390,14 @@ def _cmd_validate(args: argparse.Namespace) -> int:
             aliases = detect_legacy_aliases(original_frontmatter(md))
             if aliases:
                 alias_warnings.append((md.name, aliases))
+        # ADR-259 Rev 2, R2-REC-4: repo-vs-path consistency. Warning only —
+        # catches moved/renamed/vendored files, never blocks (path-derivation
+        # itself degrades silently outside a git checkout, see derive_repo_slug).
+        with contextlib.suppress(Exception):
+            fm_repo = original_frontmatter(md).get("repo")
+            path_repo = derive_repo_slug(md.resolve())
+            if fm_repo and path_repo and fm_repo != path_repo:
+                path_mismatches.append((md.name, fm_repo, path_repo))
 
     total = len(ok) + len(failures)
     pct = 100 * len(ok) / total if total else 0
@@ -402,6 +413,10 @@ def _cmd_validate(args: argparse.Namespace) -> int:
                 "deprecation_warnings": [
                     {"file": f, "aliases": [{"legacy": legacy, "canonical": canonical} for legacy, canonical in al]}
                     for f, al in alias_warnings
+                ],
+                "path_repo_mismatches": [
+                    {"file": f, "frontmatter_repo": fm_repo, "path_repo": path_repo}
+                    for f, fm_repo, path_repo in path_mismatches
                 ],
             }
         )
@@ -420,6 +435,13 @@ def _cmd_validate(args: argparse.Namespace) -> int:
             for name, aliases in alias_warnings:
                 hint = ", ".join(f"'{legacy}' → '{canonical}'" for legacy, canonical in aliases)
                 print(f"  {name}: {hint}")
+        if path_mismatches:
+            print(
+                f"\nPATH-REPO MISMATCH ({len(path_mismatches)}) — frontmatter 'repo' vs. actual checkout "
+                "(ADR-259 Rev 2, R2-REC-4 — moved/renamed/vendored file?):"
+            )
+            for name, fm_repo, path_repo in path_mismatches:
+                print(f"  {name}: frontmatter repo='{fm_repo}' but located in '{path_repo}'")
 
     return 1 if failures else 0
 
@@ -790,6 +812,11 @@ def _add_propose_parser(sub: argparse._SubParsersAction) -> None:
     )
     p.add_argument("--domain", action="append", required=True, help="Domain tag (repeatable, at least 1 required)")
     p.add_argument("--decider", action="append", required=True, help="Decider name (repeatable, at least 1 required)")
+    p.add_argument(
+        "--repo",
+        help="Origin repo slug for frontmatter 'repo' field (ADR-259). "
+        "Auto-derived from CWD's git checkout name if omitted.",
+    )
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=_cmd_propose)
 

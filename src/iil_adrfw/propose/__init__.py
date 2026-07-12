@@ -388,10 +388,16 @@ def propose_adr(
     from pathlib import Path
 
     from iil_adrfw.cross_repo import ConsumerRepoLayout, validate_cross_repo
+    from iil_adrfw.persistence import derive_repo_slug
 
     start = time.monotonic()
 
     proposed_id = _next_adr_id(graph, req.requested_id)
+
+    # ADR-259 Rev 2, R2-REC-4: auto-derive `repo` from CWD when not explicitly
+    # given — a caller invoking `adr propose` from inside a checkout shouldn't
+    # have to pass --repo by hand. Explicit req.repo always wins.
+    repo = req.repo or derive_repo_slug(Path.cwd())
 
     # Pre-checks
     duplicate_findings = _detect_duplicate_title(graph, req.title, req.rationale_summary)
@@ -416,7 +422,7 @@ def propose_adr(
         domains=req.domains,
         deciders=req.deciders,
         rationale_summary=req.rationale_summary,
-        repo=req.repo,
+        repo=repo,
         consumers=req.consumers,
         supersedes=req.supersedes,
         consolidates=req.consolidates,
