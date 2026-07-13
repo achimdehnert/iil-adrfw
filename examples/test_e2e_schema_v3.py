@@ -485,6 +485,72 @@ def test_should_normalize_sunset_after_date_object_to_string():
 
 
 # ─────────────────────────────────────────────────────────────
+# Graph-/Governance-Felder (platform:ADR-211 Rev 21) — Fleet-Audit F-2b, 2026-07-10
+# ─────────────────────────────────────────────────────────────
+
+
+def test_should_accept_rev21_graph_fields():
+    """extends (cross-repo), realizes_use_cases, spec_role, system-refs, scope.repos/apps."""
+    _cleanup()
+    extra = """extends:
+  - "platform:ADR-103"
+realizes_use_cases:
+  - UC-AH-040
+spec_role: root
+replaces_system_ref: FV-EXCEL-MANUELL
+integrates_with_refs: []
+supersedes_partial: []
+scope:
+  repos: [design-hub]
+  apps: []
+"""
+    _stage("ADR-505.md", _BASE.format(nnn="505", extra=extra))
+    adrs = load_adrs(ADRS_DIR, SCHEMAS_DIR, validate=True)
+    assert len(adrs) == 1
+    assert adrs[0].raw_frontmatter.get("extends") == ["platform:ADR-103"]
+    assert adrs[0].raw_frontmatter.get("spec_role") == "root"
+    print("  PASS: Rev-21-Graph-Felder validieren")
+
+
+def test_should_reject_invalid_spec_role_value():
+    """spec_role außerhalb root|hybrid|standalone wird abgelehnt ('detail' ist bewusst offen)."""
+    _cleanup()
+    _stage("ADR-506.md", _BASE.format(nnn="506", extra="spec_role: detail\n"))
+    try:
+        load_adrs(ADRS_DIR, SCHEMAS_DIR, validate=True)
+        raise AssertionError("expected ADRLoadError for spec_role=detail")
+    except ADRLoadError:
+        pass
+    print("  PASS: spec_role=detail korrekt abgelehnt")
+
+
+def test_should_normalize_ratified_to_accepted():
+    """Legacy 'ratified' (Datum) wird auf 'accepted' normalisiert."""
+    _cleanup()
+    _stage("ADR-507.md", _BASE.format(nnn="507", extra="ratified: 2026-07-02\n"))
+    adrs = load_adrs(ADRS_DIR, SCHEMAS_DIR, validate=True)
+    assert adrs[0].raw_frontmatter.get("accepted") == "2026-07-02"
+    assert "ratified" not in adrs[0].raw_frontmatter
+    print("  PASS: ratified -> accepted")
+
+
+def test_should_transform_amendments_shape_to_amended():
+    """Gelebte meiki-Form amendments: [{date, by, what}] -> amended: [{at, by, summary}]."""
+    _cleanup()
+    extra = """amendments:
+  - {date: 2026-06-02, by: "meiki:ADR-037", what: "Kundendaten-Capabilities ergänzt"}
+"""
+    _stage("ADR-508.md", _BASE.format(nnn="508", extra=extra))
+    adrs = load_adrs(ADRS_DIR, SCHEMAS_DIR, validate=True)
+    amended = adrs[0].raw_frontmatter.get("amended")
+    assert amended and amended[0]["at"] == "2026-06-02"
+    assert amended[0]["summary"] == "Kundendaten-Capabilities ergänzt"
+    assert amended[0]["by"] == "meiki:ADR-037"
+    assert "amendments" not in adrs[0].raw_frontmatter
+    print("  PASS: amendments-Shape -> amended")
+
+
+# ─────────────────────────────────────────────────────────────
 # Test runner
 # ─────────────────────────────────────────────────────────────
 
@@ -518,6 +584,10 @@ if __name__ == "__main__":
         ("klickdummy fields accepted", test_should_accept_klickdummy_class_and_conforms_to_fields),
         ("klickdummy class enum rejected", test_should_reject_unknown_klickdummy_class_value),
         ("sunset_after normalized", test_should_normalize_sunset_after_date_object_to_string),
+        ("rev21 graph fields", test_should_accept_rev21_graph_fields),
+        ("spec_role enum rejected", test_should_reject_invalid_spec_role_value),
+        ("ratified -> accepted", test_should_normalize_ratified_to_accepted),
+        ("amendments -> amended", test_should_transform_amendments_shape_to_amended),
     ]
     print("=" * 70)
     print(f"Schema v3 tests — {len(tests)} cases")

@@ -51,6 +51,9 @@ _FIELD_ALIASES: tuple[tuple[str, str], ...] = (
     ("doc-type", "doc_type"),
     ("status-history", "status_history"),
     ("decision-maker", "deciders"),
+    # Fleet-Audit F-2b (2026-07-10) — gelebte Governance-Varianten
+    ("ratified", "accepted"),
+    ("decision", "rationale_summary"),
 )
 
 
@@ -146,6 +149,10 @@ def _normalize_status(raw: Any) -> Any:
     s = raw.strip().strip('"').strip("'").lower()
     s = re.sub(r"\s*\(v[\d.]+\)\s*$", "", s)
     s = re.sub(r"\s*\(revision[^)]*\)\s*$", "", s)
+    # F-2b: gelebte Suffix-Varianten 'accepted with amendments' /
+    # 'accepted with mandatory pre-conditions' — Caveat bleibt im Body,
+    # maschinenlesbar zählt der Lifecycle-Zustand (analog Versions-Suffixe)
+    s = re.sub(r"^accepted\s+with\s+.*$", "accepted", s)
     return s
 
 
@@ -196,6 +203,24 @@ def _normalize_frontmatter(
                 # Both forms present — drop the legacy form, keep canonical
                 frontmatter.pop(legacy)
 
+    # C.1c — F-2b: 'amendments' (gelebte meiki-Form {date, by, what}) -> 'amended'
+    # ({at, by, summary}); Shape-Transform statt Rename. Bestehendes 'amended' gewinnt.
+    if "amendments" in frontmatter:
+        raw_amendments = frontmatter.pop("amendments")
+        if "amended" not in frontmatter and isinstance(raw_amendments, list):
+            mapped = []
+            for item in raw_amendments:
+                if isinstance(item, dict):
+                    entry = {
+                        "at": str(item.get("date", item.get("at", "")))[:10],
+                        "summary": str(item.get("what", item.get("summary", ""))),
+                    }
+                    if item.get("by"):
+                        entry["by"] = str(item["by"])
+                    mapped.append(entry)
+            if mapped:
+                frontmatter["amended"] = mapped
+
     # C.1b — Date fields: YAML auto-parses dates as datetime.date, schema expects strings
     for date_field in (
         "decision_date",
@@ -205,6 +230,7 @@ def _normalize_frontmatter(
         "valid_to",
         "knowledge_from",
         "sunset_after",
+        "accepted",
     ):
         v = frontmatter.get(date_field)
         if v is not None and not isinstance(v, str):
@@ -586,9 +612,11 @@ def load_adr(
     # v1.1 fields
     amendments = tuple(
         Amendment(
-            version=a["version"],
+            # F-2b: version/by sind seit Schema-Relaxierung optional
+            # (gelebte amendments-Form {date, by, what} trägt keine Semver)
+            version=a.get("version", ""),
             at=_to_datetime(a["at"]),
-            by=a["by"],
+            by=a.get("by", ""),
             summary=a["summary"],
             sections_changed=tuple(a.get("sections_changed", ())),
             rationale=a.get("rationale", ""),
