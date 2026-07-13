@@ -18,7 +18,7 @@
 
 ## Real-world validation
 
-Tested against **156 real platform ADRs** (as of v0.3.1):
+Tested against **156 real platform ADRs** (as of v0.7.0):
 
 | Mode | Result |
 |---|---|
