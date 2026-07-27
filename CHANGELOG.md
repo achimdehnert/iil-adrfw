@@ -5,6 +5,17 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.7.1] — 2026-07-27
+
+### Fixed
+
+- **Klickdummy ADR-211 frontmatter keys were unreleased (illustration-hub#78):**
+  `class`/`conforms_to`/`sunset_after`/`extension_review_required`/`sister_of` were
+  added to the schema in commit 6218675 (#59, 2026-07-10) — behebt ~80 Fleet-Hard-Fails
+  laut ADR-FLEET-AUDIT 2026-07-10 F-2 — but no version bump followed, so every
+  `pip install iil-adrfw` consumer kept validating against the pre-fix schema.
+  This release ships that fix.
+
 ## [0.7.0] — 2026-07-05
 
 ### Added
