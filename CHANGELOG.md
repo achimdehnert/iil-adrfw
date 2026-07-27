@@ -5,6 +5,19 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.7.2] — 2026-07-27
+
+### Fixed
+
+- **0.7.1 still shipped the broken schema (illustration-hub#78):** the repo carries
+  two copies of `adr_frontmatter.schema.json` — `schemas/` (repo-root, used by dev
+  checkouts) and `src/iil_adrfw/schemas/` (bundled into the wheel/sdist; what
+  `get_schema_dir()` actually resolves to for a `pip install`ed CLI). Commit 6218675
+  (#59) fixed only the repo-root copy — 0.7.1 published a package whose runtime
+  schema was unchanged, `iil-adrfw validate` still rejected `class`/`conforms_to`/etc.
+  Synced the packaged copy; added `test_e2e_packaged_schema_sync.py` to fail CI if
+  the two copies ever diverge again.
+
 ## [0.7.1] — 2026-07-27
 
 ### Fixed
