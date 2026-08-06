@@ -15,16 +15,19 @@ from __future__ import annotations
 import argparse
 import contextlib
 import json
+import os
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from iil_adrfw.server import (
+from iil_adrfw.api import (
     AuditRequest,
     CheckRequest,
     DiffRequest,
     ExplainRequest,
+    FreshnessRequest,
+    ImpactRequest,
     NarrateRequest,
     ProposeRequest,
     QueryRequest,
@@ -33,6 +36,8 @@ from iil_adrfw.server import (
     _do_check,
     _do_diff,
     _do_explain,
+    _do_freshness,
+    _do_impact,
     _do_list_adrs,
     _do_narrate,
     _do_propose,
@@ -40,6 +45,7 @@ from iil_adrfw.server import (
     _do_staleness,
     _do_validate_cross_repo,
 )
+from iil_adrfw.errors import MissingExtraError
 
 # ─── Common helpers ─────────────────────────────────────────────
 
@@ -78,6 +84,85 @@ def _escape_dot(s: str) -> str:
 def _escape_md_cell(s: str) -> str:
     """Escape a string for safe interpolation into a Markdown table cell."""
     return _escape_text(s).replace("|", "\\|")
+
+
+# ─── ADR directory resolution (one contract for every subcommand) ─
+
+#: Where ADRs live when nothing else says otherwise. Every ADR-carrying repo in
+#: the fleet uses this layout; the pre-0.8 default (``./adrs``) matched none of
+#: them and silently produced empty-but-green runs.
+DEFAULT_ADR_DIR = "docs/adr"
+
+
+def _add_adr_dir_args(p: argparse.ArgumentParser, positional: bool = True) -> None:
+    """Attach the uniform ADR-directory interface to a subparser.
+
+    Every subcommand accepts ``--adr-dir``. Subcommands that historically took a
+    positional directory keep it (now optional, so ``--adr-dir`` is equally
+    valid) — that keeps every documented invocation working while removing the
+    three-way split (positional / env-var-only / ``--adr-dir``) that made the
+    surface unguessable for consumers.
+    """
+    if positional:
+        p.add_argument("adr_dir_pos", nargs="?", metavar="adr_dir", help="Directory containing ADR-*.md files")
+    p.add_argument(
+        "--adr-dir",
+        dest="adr_dir",
+        default=None,
+        help=f"Directory containing ADR-*.md files (default: $IIL_ADRFW_ADRS_DIR or ./{DEFAULT_ADR_DIR})",
+    )
+    p.add_argument(
+        "--allow-empty",
+        action="store_true",
+        help="Treat a constitution with zero ADRs as success instead of a configuration error",
+    )
+
+
+def _resolve_adr_dir(args: argparse.Namespace) -> Path:
+    """Resolve the ADR directory: explicit flag > positional > env > default."""
+    for candidate in (getattr(args, "adr_dir", None), getattr(args, "adr_dir_pos", None)):
+        if candidate:
+            return Path(candidate)
+    env = os.environ.get("IIL_ADRFW_ADRS_DIR")
+    return Path(env) if env else Path(DEFAULT_ADR_DIR)
+
+
+def _apply_adr_dir(args: argparse.Namespace) -> int:
+    """Validate the resolved ADR directory and publish it to the whole process.
+
+    Returns a CLI exit code: 0 to continue, 2 for a configuration error.
+
+    Nothing here is cosmetic. A missing directory or an empty constitution used
+    to sail through as ``health score 1.000 / OK — no findings / exit 0`` — a
+    green check that had audited nothing. Both are configuration errors now, so
+    a misconfigured consumer pipeline fails loudly instead of reporting health
+    it never measured. ``--allow-empty`` is the explicit opt-out for repos that
+    legitimately start with zero ADRs.
+    """
+    adr_dir = _resolve_adr_dir(args)
+
+    if not adr_dir.is_dir():
+        print(
+            f"error: ADR directory {adr_dir} does not exist.\n"
+            f"       Pass --adr-dir PATH, set IIL_ADRFW_ADRS_DIR, or create ./{DEFAULT_ADR_DIR}.",
+            file=sys.stderr,
+        )
+        return 2
+
+    if not any(adr_dir.glob("ADR-*.md")) and not getattr(args, "allow_empty", False):
+        print(
+            f"error: no ADR-*.md files in {adr_dir} — refusing to report on an empty constitution.\n"
+            f"       Point --adr-dir at the right directory, or pass --allow-empty if this is expected.",
+            file=sys.stderr,
+        )
+        return 2
+
+    resolved = str(adr_dir)
+    args.adr_dir = resolved
+    # The `_do_*` handlers read the directory from the environment; publishing the
+    # resolved value here is what makes --adr-dir work for every subcommand.
+    os.environ["IIL_ADRFW_ADRS_DIR"] = resolved
+    return 0
 
 
 # ─── adr_check ──────────────────────────────────────────────────
@@ -201,6 +286,7 @@ def _add_validate_cross_repo_parser(sub: argparse._SubParsersAction) -> None:
         help="Consumer repo as NAME=PATH (repeatable, at least 1 required)",
     )
     p.add_argument("--json", action="store_true")
+    _add_adr_dir_args(p, positional=False)
     p.set_defaults(func=_cmd_validate_cross_repo)
 
 
@@ -475,7 +561,7 @@ def _cmd_staleness(args: argparse.Namespace) -> int:
 
 def _add_staleness_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("staleness", help="Check ADRs for staleness and reference drift")
-    p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
+    _add_adr_dir_args(p)
     p.add_argument("--months", type=int, default=6, help="Staleness threshold in months (default: 6)")
     p.add_argument(
         "--schema-dir", dest="schema_dir", help="Directory containing JSON schema files (default: auto-detect)"
@@ -590,7 +676,7 @@ def _cmd_graph(args: argparse.Namespace) -> int:
 
 def _add_graph_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("graph", help="Generate ADR dependency graph")
-    p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
+    _add_adr_dir_args(p)
     p.add_argument(
         "--schema-dir", dest="schema_dir", help="Directory containing JSON schema files (default: auto-detect)"
     )
@@ -683,7 +769,7 @@ def _cmd_export(args: argparse.Namespace) -> int:
 
 def _add_export_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("export", help="Export ADR registry as Outline-compatible markdown")
-    p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
+    _add_adr_dir_args(p)
     p.add_argument(
         "--schema-dir", dest="schema_dir", help="Directory containing JSON schema files (default: auto-detect)"
     )
@@ -718,7 +804,7 @@ def _cmd_index(args: argparse.Namespace) -> int:
 
 def _add_index_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("index", help="Render the ADR INDEX.md table (ADR-138 Impl column)")
-    p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
+    _add_adr_dir_args(p)
     p.add_argument(
         "--include-archive",
         action="store_true",
@@ -733,7 +819,7 @@ def _add_index_parser(sub: argparse._SubParsersAction) -> None:
 
 def _add_validate_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("validate", help="Validate ADR frontmatter against schema v3")
-    p.add_argument("adr_dir", help="Directory containing ADR-*.md files")
+    _add_adr_dir_args(p)
     p.add_argument(
         "--schema-dir", dest="schema_dir", help="Directory containing JSON schema files (default: auto-detect)"
     )
@@ -748,6 +834,7 @@ def _add_check_parser(sub: argparse._SubParsersAction) -> None:
     p.add_argument("--severity", default="warning", choices=["info", "warning", "error", "critical"])
     p.add_argument("--as-of", help="ISO timestamp; check constitution as of this time")
     p.add_argument("--json", action="store_true")
+    _add_adr_dir_args(p, positional=False)
     p.set_defaults(func=_cmd_check)
 
 
@@ -756,12 +843,14 @@ def _add_explain_parser(sub: argparse._SubParsersAction) -> None:
     p.add_argument("rule_id")
     p.add_argument("--audience", default="senior", choices=["new_dev", "senior", "architect", "auditor"])
     p.add_argument("--json", action="store_true")
+    _add_adr_dir_args(p, positional=False)
     p.set_defaults(func=_cmd_explain)
 
 
 def _add_list_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("list", help="List ADRs in the constitution")
     p.add_argument("--json", action="store_true")
+    _add_adr_dir_args(p, positional=False)
     p.set_defaults(func=_cmd_list)
 
 
@@ -771,6 +860,7 @@ def _add_query_parser(sub: argparse._SubParsersAction) -> None:
     p.add_argument("--domain", help="Limit to specific domain tag")
     p.add_argument("--path", help="File path the answer should apply to")
     p.add_argument("--json", action="store_true")
+    _add_adr_dir_args(p, positional=False)
     p.set_defaults(func=_cmd_query)
 
 
@@ -779,6 +869,7 @@ def _add_audit_parser(sub: argparse._SubParsersAction) -> None:
     p.add_argument("--auditor", action="append", default=[], help="Run only specific auditors (repeatable)")
     p.add_argument("--as-of", help="ISO timestamp; audit constitution as of this time")
     p.add_argument("--json", action="store_true")
+    _add_adr_dir_args(p, positional=False)
     p.set_defaults(func=_cmd_audit)
 
 
@@ -791,6 +882,7 @@ def _add_propose_parser(sub: argparse._SubParsersAction) -> None:
     p.add_argument("--domain", action="append", required=True, help="Domain tag (repeatable, at least 1 required)")
     p.add_argument("--decider", action="append", required=True, help="Decider name (repeatable, at least 1 required)")
     p.add_argument("--json", action="store_true")
+    _add_adr_dir_args(p, positional=False)
     p.set_defaults(func=_cmd_propose)
 
 
@@ -803,6 +895,7 @@ def _add_diff_parser(sub: argparse._SubParsersAction) -> None:
     p.add_argument("--left-label", default="left")
     p.add_argument("--right-label", default="right")
     p.add_argument("--json", action="store_true")
+    _add_adr_dir_args(p, positional=False)
     p.set_defaults(func=_cmd_diff)
 
 
@@ -814,21 +907,21 @@ def _add_narrate_parser(sub: argparse._SubParsersAction) -> None:
     p.add_argument("--path-filter", help="Pick ADRs whose scope matches this path")
     p.add_argument("--scope-label", default="the constitution", help="Free-text label used in the narrative title")
     p.add_argument("--json", action="store_true")
+    _add_adr_dir_args(p, positional=False)
     p.set_defaults(func=_cmd_narrate)
 
 
 def _cmd_metrics(args: argparse.Namespace) -> int:
     """Compute and optionally write Schema v4 metrics to ADR frontmatters."""
-    import os as _os
-
     from iil_adrfw.metrics import compute_all, controlling_report, write_metrics
     from iil_adrfw.persistence import load_adrs
     from iil_adrfw.schemas import get_schema_dir
 
-    _adr_dir_str = args.adr_dir or _os.environ.get("IIL_ADRFW_ADRS_DIR") or "docs/adr"
-    adr_dir = Path(_adr_dir_str)
+    adr_dir = Path(args.adr_dir)
     schema_dir = Path(args.schema_dir) if args.schema_dir else get_schema_dir()
 
+    # `main()` already validated this via `_apply_adr_dir`; repeated here because
+    # `_cmd_*` functions are importable and get called directly (tests, embedders).
     if not adr_dir.is_dir():
         print(f"error: {adr_dir} is not a directory", file=sys.stderr)
         return 2
@@ -864,7 +957,7 @@ def _cmd_metrics(args: argparse.Namespace) -> int:
 
 def _add_metrics_parser(sub: argparse._SubParsersAction) -> None:
     p = sub.add_parser("metrics", help="Compute Schema v4 metrics (inbound_links, ttd, ttr, ai_interactions)")
-    p.add_argument("--adr-dir", default=None, help="ADR directory (default: $IIL_ADRFW_ADRS_DIR or ./docs/adr)")
+    _add_adr_dir_args(p, positional=False)
     p.add_argument("--schema-dir", default=None)
     p.add_argument("--write", action="store_true", help="Write computed metrics into ADR frontmatters")
     p.add_argument("--report", action="store_true", help="Print controlling report (always shown without --write)")
@@ -872,11 +965,75 @@ def _add_metrics_parser(sub: argparse._SubParsersAction) -> None:
     p.set_defaults(func=_cmd_metrics)
 
 
+def _cmd_freshness(args: argparse.Namespace) -> int:
+    """Check ADR claims (versions, ports, images) against actual repo state."""
+    req = FreshnessRequest(
+        adr_id=args.adr_id,
+        repo_path=args.repo_path,
+        compose_files=args.compose_file or None,
+        requirements_files=args.requirements_file or None,
+    )
+    resp = _do_freshness(req)
+    if args.json:
+        _print_json(resp)
+        return 1 if resp.stale_claims else 0
+
+    print(
+        f"Freshness: {resp.total_claims} claim(s) — "
+        f"{resp.verified_claims} verified, {resp.unverifiable_claims} unverifiable, "
+        f"{len(resp.stale_claims)} stale ({resp.runtime_ms}ms)"
+    )
+    if not resp.stale_claims:
+        print("OK — no drift")
+        return 0
+    print(f"FOUND {len(resp.stale_claims)} stale claim(s):")
+    for c in resp.stale_claims:
+        print(f"  [{c.severity}] {c.adr_id} {c.claim_type} {c.subject}")
+        print(f"    ADR claims: {c.claimed_value}")
+        print(f"    repo has:   {c.actual_value}  ({c.source_file})")
+    return 1
+
+
+def _add_freshness_parser(sub: argparse._SubParsersAction) -> None:
+    p = sub.add_parser("freshness", help="Check ADR claims against actual repo state (versions, ports, images)")
+    p.add_argument("--adr-id", dest="adr_id", default=None, help="Check one ADR (default: all active ADRs)")
+    p.add_argument("--repo-path", dest="repo_path", default=".", help="Repo root to compare against (default: .)")
+    p.add_argument("--compose-file", action="append", default=[], help="docker-compose file (repeatable)")
+    p.add_argument("--requirements-file", action="append", default=[], help="requirements file (repeatable)")
+    p.add_argument("--json", action="store_true")
+    _add_adr_dir_args(p, positional=False)
+    p.set_defaults(func=_cmd_freshness)
+
+
+def _cmd_impact(args: argparse.Namespace) -> int:
+    """Given a file path, list the ADRs that govern it."""
+    resp = _do_impact(ImpactRequest(file_path=args.file_path, repo=args.repo))
+    if args.json:
+        _print_json(resp)
+    else:
+        print(f"{resp.file_path}: {resp.total_applicable} applicable ADR(s)")
+        for a in resp.applicable_adrs:
+            print(f"  [{a.relevance}] {a.adr_id} — {a.title} ({a.matched_by})")
+    return 0
+
+
+def _add_impact_parser(sub: argparse._SubParsersAction) -> None:
+    p = sub.add_parser("impact", help="List which ADRs govern a given file path")
+    p.add_argument("file_path", help="File path to check, e.g. 'apps/billing/models.py'")
+    p.add_argument("--repo", default=None, help="Repo name for scope filtering")
+    p.add_argument("--json", action="store_true")
+    _add_adr_dir_args(p, positional=False)
+    p.set_defaults(func=_cmd_impact)
+
+
 def main() -> None:
+    from iil_adrfw import __version__
+
     p = argparse.ArgumentParser(
         prog="iil-adrfw",
         description="Architecture Decision Record framework — headless CLI",
     )
+    p.add_argument("--version", action="version", version=f"iil-adrfw {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     _add_validate_parser(sub)
@@ -894,10 +1051,22 @@ def main() -> None:
     _add_diff_parser(sub)
     _add_narrate_parser(sub)
     _add_metrics_parser(sub)
+    _add_freshness_parser(sub)
+    _add_impact_parser(sub)
 
     args = p.parse_args()
+
+    # One ADR-directory contract for every subcommand, enforced before dispatch.
+    rc = _apply_adr_dir(args)
+    if rc != 0:
+        sys.exit(rc)
+
     try:
         sys.exit(args.func(args))
+    except MissingExtraError as e:
+        # A missing optional extra is the operator's install to fix, not a bug.
+        print(f"error: {e}", file=sys.stderr)
+        sys.exit(2)
     except (FileNotFoundError, ValueError) as e:
         print(f"error: {e}", file=sys.stderr)
         sys.exit(2)

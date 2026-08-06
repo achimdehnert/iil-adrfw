@@ -1,0 +1,126 @@
+# Reusable ADR validation for any repo that carries docs/adr/ADR-*.md.
+#
+# Consumer side is six lines — no copy-pasted steps, so it cannot drift:
+#
+#   jobs:
+#     adr:
+#       uses: achimdehnert/iil-adrfw/.github/workflows/_adr-validate.yml@main
+#       with:
+#         audit: true
+#
+# Why this exists: 39 repos in the fleet carry ADRs, 3 had any ADR CI, and the
+# two non-platform ones were copy-pasted clones that had drifted — including an
+# `--adr-dir` flag `audit` did not accept, which turned the nightly audit into a
+# silent no-op that still reported green. A reusable workflow plus the 0.8.0 CLI
+# contract (missing/empty ADR dir = exit 2) removes both failure modes.
+
+name: ADR Validation (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      adr-dir:
+        description: "Directory containing ADR-*.md files"
+        type: string
+        required: false
+        default: "docs/adr"
+      version:
+        description: "iil-adrfw version specifier to install"
+        type: string
+        required: false
+        default: ">=0.8.0"
+      python-version:
+        type: string
+        required: false
+        default: "3.12"
+      audit:
+        description: "Also run the constitution audit"
+        type: boolean
+        required: false
+        default: true
+      audit-gating:
+        description: "Fail the build on audit findings (default: report only)"
+        type: boolean
+        required: false
+        default: false
+      staleness:
+        description: "Also run the staleness / reference-drift report"
+        type: boolean
+        required: false
+        default: true
+      staleness-months:
+        type: number
+        required: false
+        default: 6
+      allow-empty:
+        description: "Permit a constitution with zero ADRs instead of failing"
+        type: boolean
+        required: false
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install iil-adrfw
+        run: pip install --quiet "iil-adrfw${{ inputs.version }}"
+
+      # Gating. Exit 2 here means the ADR directory is missing or empty — a
+      # misconfigured pipeline, which must fail rather than report a green
+      # check over zero ADRs.
+      - name: Validate ADR frontmatter
+        run: |
+          iil-adrfw validate \
+            --adr-dir "${{ inputs.adr-dir }}" \
+            ${{ inputs.allow-empty && '--allow-empty' || '' }}
+
+      - name: Constitution audit
+        if: inputs.audit
+        run: |
+          set +e
+          iil-adrfw audit --adr-dir "${{ inputs.adr-dir }}" | tee audit.txt
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -eq 2 ]; then
+            echo "::error title=ADR audit misconfigured::iil-adrfw exited 2 — see log."
+            exit 2
+          fi
+          if [ "$rc" -ne 0 ]; then
+            echo "::warning title=ADR audit findings::The constitution audit reported findings — see log."
+            if [ "${{ inputs.audit-gating }}" = "true" ]; then exit "$rc"; fi
+          fi
+          exit 0
+
+      - name: Staleness + reference drift
+        if: inputs.staleness
+        run: |
+          set +e
+          iil-adrfw staleness \
+            --adr-dir "${{ inputs.adr-dir }}" \
+            --months "${{ inputs.staleness-months }}" | tee staleness.txt
+          rc=${PIPESTATUS[0]}
+          if [ "$rc" -eq 2 ]; then
+            echo "::error title=ADR staleness misconfigured::iil-adrfw exited 2 — see log."
+            exit 2
+          fi
+          exit 0
+
+      - name: Summary
+        if: always()
+        run: |
+          {
+            echo "### ADR validation"
+            echo ""
+            echo "- ADR directory: \`${{ inputs.adr-dir }}\`"
+            echo "- iil-adrfw: \`$(iil-adrfw --version 2>/dev/null || pip show iil-adrfw | awk '/^Version:/{print $2}')\`"
+            [ -f audit.txt ] && { echo ""; echo "<details><summary>Audit</summary>"; echo ""; echo '```'; head -40 audit.txt; echo '```'; echo "</details>"; }
+            [ -f staleness.txt ] && { echo ""; echo "<details><summary>Staleness</summary>"; echo ""; echo '```'; head -40 staleness.txt; echo '```'; echo "</details>"; }
+          } >> "$GITHUB_STEP_SUMMARY"

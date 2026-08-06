@@ -561,6 +561,16 @@ def load_adr(
                 messages.append(f"  {loc}: {err.message}")
             raise ADRLoadError(f"{md_path}: frontmatter validation failed:\n" + "\n".join(messages))
 
+    # Phase 3 construction requires the fields Phase 1 guarantees. With raw=True
+    # (normalization skipped) and validate=False, an ADR that relies on aliases or
+    # inference reaches here incomplete — report that as a load error naming the
+    # fields, instead of a bare KeyError deep in the constructor.
+    _REQUIRED_FOR_CONSTRUCTION = ("id", "title", "status", "domains", "deciders", "decision_date")
+    missing = [key for key in _REQUIRED_FOR_CONSTRUCTION if key not in frontmatter]
+    if missing:
+        hint = " (raw=True skips the normalization that would have supplied them)" if raw else ""
+        raise ADRLoadError(f"{md_path}: frontmatter is missing required field(s) {', '.join(missing)}{hint}")
+
     decision_date = _to_datetime(frontmatter["decision_date"])
     temporal = _build_temporal(frontmatter, default_valid_from=decision_date)
 
@@ -738,10 +748,34 @@ def _load_rules(
     return rules
 
 
-def load_adrs(adrs_dir: Path, schemas_dir: Path, validate: bool = True, raw: bool = False) -> list[ADR]:
-    """Load every ADR in a directory. See load_adr for the meaning of raw."""
+def load_adrs(
+    adrs_dir: Path,
+    schemas_dir: Path,
+    validate: bool = True,
+    raw: bool = False,
+    errors: list[dict] | None = None,
+) -> list[ADR]:
+    """Load every ADR in a directory. See load_adr for the meaning of raw.
+
+    Args:
+        errors: If a list is passed, a file that fails to load is appended to it
+            as ``{"file": <name>, "error": <message>}`` and skipped, instead of
+            aborting the whole load. Default (None) keeps the strict behaviour:
+            the first bad ADR raises ``ADRLoadError``.
+
+    The tolerant mode exists for constitution-level consumers (audit, graph)
+    that must still say something useful about a repo where a few ADRs are
+    malformed — an all-or-nothing load made those tools unusable in exactly the
+    repos that needed them most.
+    """
     adrs: list[ADR] = []
     for md_path in sorted(adrs_dir.glob("ADR-*.md")):
         if md_path.name.startswith("ADR-") and md_path.suffix == ".md":
-            adrs.append(load_adr(md_path, schemas_dir, validate=validate, raw=raw))
+            if errors is None:
+                adrs.append(load_adr(md_path, schemas_dir, validate=validate, raw=raw))
+                continue
+            try:
+                adrs.append(load_adr(md_path, schemas_dir, validate=validate, raw=raw))
+            except ADRLoadError as exc:
+                errors.append({"file": md_path.name, "error": str(exc)})
     return adrs

@@ -3,27 +3,51 @@
 > Living handover for the next agent/session. Keep this current; `NEXT.md` is an
 > auto-generated cache and is **not** the source of truth — this file is.
 
-## Current state (2026-07-05)
+## Current state (2026-08-06)
 
-- Version: **0.7.0** (`pyproject` + CHANGELOG top entry aligned) — **published
-  to PyPI** 2026-07-05 via Trusted Publishing (OIDC, `publish.yml`; verified live:
-  `iil_adrfw-0.7.0-py3-none-any.whl` in the simple index with provenance
-  attestation). `[Unreleased]` is empty again — the next release needs a fresh
-  version bump + CHANGELOG cut (enforced by the `publish.yml` version-check gate).
-- Tests: green — `make test` → **196 passed** (suite in `examples/`, order-stable).
-- Lint: `make lint` (`ruff check .`) clean, **gated** in CI. Types: `make types`
-  (mypy) — **0 errors, gated** in CI (`types` job), with `disallow_untyped_defs`
-  plus a strict subset (`disallow_incomplete_defs`, `check_untyped_defs`,
-  `no_implicit_optional`, `strict_equality`, `warn_redundant_casts`,
-  `warn_unused_ignores`, `warn_return_any` — all clean at zero cost).
-- Coverage: `make test` enforces **`--cov-fail-under=85`** (ratcheted from 80);
-  actual ~87.5%.
-- CI: `ci.yml` (thin caller to platform `_ci-pypi.yml@main`) — lint + types +
-  full `make test` + `SAST` bandit + `Security Scan` pip-audit + build/publish-
-  vector scan; `publish.yml` (PyPI via OIDC, `workflow_dispatch`, gated on
-  `version-check` + tests). The `ci / SAST (bandit)` check is **green and now
-  BLOCKING** (`bandit_blocking: true` in ci.yml, backed by the platform input
-  added in `platform#938`).
+- Version: **0.8.0** (`pyproject` + CHANGELOG top entry aligned) — **not yet
+  published to PyPI**. Consumer-ergonomics release; see CHANGELOG 0.8.0 for the
+  four fleet-visible defects it fixes. Publishing is the gated next step
+  (`publish.yml`, `workflow_dispatch`).
+  - *Handover drift note:* this file claimed 0.7.0 until 2026-08-06 while `main`
+    had shipped 0.7.1 and 0.7.2. Keep it current — the session-start
+    reconciliation check compares against it.
+- Tests: green — `make test` → **222 passed**, coverage ~86.8% (gate 85).
+- Lint `make lint` clean; types `make types` 0 errors. Both gated in CI.
+- Runtime install: **12 packages** (was 69). `fastmcp` → `[mcp]` extra,
+  `libcst` → `[checkers]`, `[all]` restores the old footprint.
+- `iil_adrfw.server` was split into `api.py` (transport-neutral core, no MCP
+  import) + `server.py` (FastMCP transport). All pre-0.8 `server` imports are
+  re-exported, so nothing downstream breaks.
+
+## Fleet impact of 0.8.0 (open follow-through)
+
+The nightly ADR audits in **meiki-hub** and **ttz-hub** have been silently
+auditing nothing — they call `iil-adrfw audit --adr-dir docs/adr`, a flag that
+did not exist, and their workflow turns the resulting empty output into a green
+run. Evidence: meiki-hub run 31072337200 (2026-08-06) logs
+`[INFO] Audit produced no JSON output`, conclusion success.
+
+0.8.0 fixes the framework side (the flag now exists; an empty constitution exits
+2). The consumer side still needs:
+
+1. Publish 0.8.0 to PyPI — both repos pin `iil-adrfw>=0.5.0`, so they pick it up.
+2. Repoint both nightly workflows at the reusable
+   `iil-adrfw/.github/workflows/_adr-validate.yml`, and drop the
+   `sys.exit(0)`-on-empty-output branch that masked the failure.
+3. Optional: migrate `platform/.github/workflows/adr-validate.yml` onto the same
+   reusable workflow so the remaining ~36 ADR-carrying repos can adopt it in six
+   lines. Needs @wirdigital review (platform codeowner model).
+
+## Recently landed (session 2026-08-06 — consumer ergonomics, 0.8.0)
+
+- Uniform `--adr-dir` on all 17 subcommands; empty/missing ADR dir → exit 2.
+- `server._schemas_dir()` fixed (pointed outside the package in any pip install,
+  breaking all 12 MCP tools).
+- `freshness` + `impact` promoted to CLI subcommands.
+- Reusable `_adr-validate.yml`, `.pre-commit-hooks.yaml`, `py.typed`, LICENSE,
+  top-level API re-exports, `--version`.
+- `examples/test_e2e_consumer_contract.py` (22 tests) pins all of it.
 
 ## Recently landed (session 2026-07-05 — 0.7.0 release)
 

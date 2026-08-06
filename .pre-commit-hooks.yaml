@@ -1,0 +1,36 @@
+# Hooks other repos can consume directly:
+#
+#   repos:
+#     - repo: https://github.com/achimdehnert/iil-adrfw
+#       rev: v0.8.0
+#       hooks:
+#         - id: adr-validate
+#
+# `adr-validate` is the one every ADR-carrying repo wants: it gates frontmatter
+# against the bundled schema before the commit lands. The others are opt-in.
+- id: adr-validate
+  name: ADR frontmatter validation (iil-adrfw)
+  description: Validate ADR-*.md frontmatter against the bundled JSON schema.
+  entry: iil-adrfw validate
+  language: python
+  files: ^docs/adr/ADR-.*\.md$
+  pass_filenames: false
+  args: ["--adr-dir", "docs/adr"]
+
+- id: adr-staleness
+  name: ADR staleness + reference drift (iil-adrfw)
+  description: Flag ADRs older than the threshold and dangling depends_on/superseded_by references.
+  entry: iil-adrfw staleness
+  language: python
+  files: ^docs/adr/ADR-.*\.md$
+  pass_filenames: false
+  args: ["--adr-dir", "docs/adr"]
+
+- id: adr-audit
+  name: ADR constitution audit (iil-adrfw)
+  description: Constitution-level health audit (supersession hygiene, coverage, freshness).
+  entry: iil-adrfw audit
+  language: python
+  files: ^docs/adr/ADR-.*\.md$
+  pass_filenames: false
+  args: ["--adr-dir", "docs/adr"]

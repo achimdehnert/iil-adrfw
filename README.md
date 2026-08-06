@@ -18,20 +18,35 @@
 
 ## Real-world validation
 
-Tested against **156 real platform ADRs** (as of v0.7.0):
+Tested against **239 real platform ADRs** (as of v0.8.0):
 
 | Mode | Result |
 |---|---|
-| Schema validation | **156/156 (100%)** |
+| Schema validation | **239/239 (100%)** |
 | Staleness (>6mo) | 0 stale |
-| Broken references | 0 |
-| Dependency edges | 31 |
+| Runtime packages installed | 12 |
 
 ## Installation
 
 ```bash
 pip install iil-adrfw
+```
 
+That is the lean install — 12 runtime packages, everything needed to load,
+validate, graph, audit, diff, narrate and propose ADRs. Two capabilities are
+optional extras because they carry heavy dependency trees most consumers never
+use:
+
+| Extra | Install | Adds | Needed for |
+|---|---|---|---|
+| `mcp` | `pip install 'iil-adrfw[mcp]'` | FastMCP | the `iil-adrfw-mcp` server |
+| `checkers` | `pip install 'iil-adrfw[checkers]'` | libcst | `iil-adrfw check`, `validate-cross-repo` |
+| `all` | `pip install 'iil-adrfw[all]'` | both | the pre-0.8 footprint |
+
+If you invoke something that needs an extra you don't have, the CLI says exactly
+which one and exits **2** (configuration error) — it never fails silently.
+
+```bash
 # From source with dev dependencies:
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
@@ -40,56 +55,164 @@ pip install -e ".[dev]"
 pip install --user --break-system-packages -e ".[dev]"
 ```
 
+## Using it from another repo
+
+The framework assumes the layout every ADR-carrying repo already uses:
+`docs/adr/ADR-*.md`. With that, nothing needs configuring.
+
+### 1. Gate ADRs in CI
+
+Call the reusable workflow — no copy-pasted steps to drift:
+
+```yaml
+# .github/workflows/adr-validate.yml
+name: ADR Validation
+on:
+  pull_request:
+    paths: ["docs/adr/**"]
+  push:
+    paths: ["docs/adr/**"]
+
+jobs:
+  adr:
+    uses: achimdehnert/iil-adrfw/.github/workflows/_adr-validate.yml@main
+    with:
+      adr-dir: docs/adr      # optional, this is the default
+      audit: true            # also run the constitution audit (non-gating)
+```
+
+### 2. Gate ADRs before the commit
+
+```yaml
+# .pre-commit-config.yaml
+repos:
+  - repo: https://github.com/achimdehnert/iil-adrfw
+    rev: v0.8.0
+    hooks:
+      - id: adr-validate
+```
+
+### 3. Configuration
+
+Everything is resolvable three ways, with this precedence:
+**CLI flag → environment variable → default.**
+
+| What | Flag | Environment variable | Default |
+|---|---|---|---|
+| ADR directory | `--adr-dir` | `IIL_ADRFW_ADRS_DIR` | `docs/adr` |
+| JSON schemas | `--schema-dir` | `IIL_ADRFW_SCHEMAS_DIR` | bundled with the package |
+| Repo root | — | `IIL_ADRFW_REPO_ROOT` | `.` |
+
+The bundled schemas are the default, so a `pip install` is self-sufficient —
+you never have to vendor a `schemas/` directory or point an env var at a checkout.
+
+### 4. Exit codes
+
+Every subcommand honours the same contract, so CI can branch on it:
+
+| Code | Meaning |
+|---|---|
+| 0 | Success, no findings |
+| 1 | Findings or violations present |
+| 2 | Configuration or invocation error (bad args, missing/empty ADR dir, missing extra) |
+| 3 | Internal error |
+
+**An empty or missing ADR directory is an error (2), never a clean bill of
+health.** A pipeline pointed at the wrong path fails loudly instead of reporting
+`health score 1.000` over zero ADRs. Repos that legitimately have no ADRs yet
+pass `--allow-empty`.
+
 ## Usage
 
 ### Python API
 
+The common entry points are re-exported at the top level, so they stay stable
+even if the internal module layout moves. The package ships `py.typed`, so these
+types are visible to mypy in your repo:
+
 ```python
 from pathlib import Path
-from iil_adrfw.persistence import load_adr, load_adrs
+from iil_adrfw import ConstitutionGraph, get_schema_dir, load_adr, load_adrs, run_audit
 
-# Load single ADR
-adr = load_adr(Path("docs/adr/ADR-099.md"), Path("schemas/"))
+# The bundled schemas are the default — nothing to vendor or configure.
+adrs = load_adrs(Path("docs/adr"), get_schema_dir())
 
-# Load all ADRs in directory
-adrs = load_adrs(Path("docs/adr/"), Path("schemas/"))
+graph = ConstitutionGraph(adrs)
+report = run_audit(graph)          # AuditReport: .findings + .health snapshot
+print(report.health.score, len(report.findings))
 
-# Diagnosis mode (skip normalization)
-raw_adr = load_adr(path, schemas, raw=True)
+# Single ADR
+adr = load_adr(Path("docs/adr/ADR-099.md"), get_schema_dir())
+
+# Diagnosis mode: see what the loader sees BEFORE normalization. Pair raw=True
+# with validate=False — un-normalized frontmatter will not satisfy the schema,
+# and that is the point (it shows which ADRs rely on the loader's tolerance).
+raw = load_adr(Path("docs/adr/ADR-099.md"), get_schema_dir(), validate=False, raw=True)
 ```
 
 ### CLI
 
+**Every** subcommand accepts `--adr-dir` and falls back to `$IIL_ADRFW_ADRS_DIR`
+and then `docs/adr`. Subcommands that historically took a positional directory
+still accept it.
+
 ```bash
-# Validate all ADR frontmatters against schema v3
-iil-adrfw validate docs/adr/
+# Validate all ADR frontmatters against the schema
+iil-adrfw validate                        # uses docs/adr
+iil-adrfw validate --adr-dir docs/adr     # explicit
+iil-adrfw validate docs/adr/              # positional, still supported
 
-# Check staleness (>6 months), broken references, missing reviews
-iil-adrfw staleness docs/adr/ --months 6
+# Staleness (>6 months), broken references, missing reviews
+iil-adrfw staleness --months 6
 
-# Generate dependency graph (text, DOT, or JSON)
-iil-adrfw graph docs/adr/ --dot > graph.dot
+# Constitution-level health audit
+iil-adrfw audit --json
 
-# Export Outline-compatible markdown registry
-iil-adrfw export docs/adr/ -o adr-registry.md
+# Which ADRs govern a given file?
+iil-adrfw impact apps/billing/models.py
 
-# Render the INDEX.md table (ADR-138 Impl column); --table-only for the bare block
-iil-adrfw index docs/adr/ -o docs/adr/INDEX.md
+# Do the ADRs still describe the repo? (versions, ports, images)
+iil-adrfw freshness --repo-path .
 
-# Audit constitution health
-iil-adrfw audit docs/adr/
+# Query by question, domain, or path
+iil-adrfw query --question "Which ADR governs deployment?"
 
-# Query ADRs by question/domain
-iil-adrfw query docs/adr/ "Which ADR governs deployment?"
+# Dependency graph (text, DOT, or JSON)
+iil-adrfw graph --dot > graph.dot
 
-# Compute Schema v4 controlling metrics and print a report
-iil-adrfw metrics --adr-dir docs/adr/ --report
+# Outline-compatible markdown registry
+iil-adrfw export -o adr-registry.md
+
+# INDEX.md table (ADR-138 Impl column); --table-only for the bare block
+iil-adrfw index -o docs/adr/INDEX.md
+
+# Schema v4 controlling metrics
+iil-adrfw metrics --report
 ```
+
+Full surface: `validate`, `staleness`, `graph`, `export`, `index`, `check`,
+`explain`, `list`, `validate-cross-repo`, `query`, `audit`, `propose`, `diff`,
+`narrate`, `metrics`, `freshness`, `impact`.
 
 ### MCP Server (12 tools)
 
 ```bash
-iil-adrfw-mcp  # stdio transport, register in Windsurf mcp_config.json
+pip install 'iil-adrfw[mcp]'
+iil-adrfw-mcp  # stdio transport
+```
+
+Register it with the ADR directory of the repo it should serve:
+
+```json
+{
+  "mcpServers": {
+    "iil-adrfw": {
+      "type": "stdio",
+      "command": "iil-adrfw-mcp",
+      "env": { "IIL_ADRFW_ADRS_DIR": "/abs/path/to/repo/docs/adr" }
+    }
+  }
+}
 ```
 
 Tools: `adr_validate`, `adr_staleness`, `adr_impact`, `adr_check`, `adr_explain`, `adr_query`, `adr_audit`, `adr_validate_cross_repo`, `adr_propose`, `adr_diff`, `adr_narrate`, `adr_freshness`
