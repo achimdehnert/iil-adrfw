@@ -39,6 +39,35 @@ fixes the contract they actually depend on.
   (meiki-hub: 23 of 36 ADRs invalid). `load_adrs()` gained an opt-in `errors=`
   collector (default stays strict); `audit` now reports unloadable ADRs as
   `loadability` findings and audits the rest.
+- **The ADR-211 Rev 21 vocabulary was never covered by the schema (75 of 747 fleet
+  ADRs invalid).** platform:ADR-211 Rev 21 (owner-ratified 2026-07-10) canonicalized
+  `extends`, `realizes_use_cases`, `spec_role`, `replaces_system_ref`,
+  `integrates_with_system_ref`, `integrates_with_refs`, `supersedes_partial` and
+  `scope.repos`/`scope.apps`, and assigned the validator coverage to an iil-adrfw
+  follow-up PR that never happened. Every repo carrying the ratified vocabulary
+  hard-failed validation. Added all of them as optional properties — Rev 21 is
+  explicit that these are metadata definitions and **not** new gates, so the
+  documented mutual exclusion of `replaces_system_ref` / `integrates_with_system_ref`
+  is described but deliberately not enforced. `spec_role: detail` stays rejected,
+  as ADR-211 leaves that fourth value open. Measured fleet-wide 2026-08-06:
+  **75 invalid ADRs → 30**, the remainder being genuine authoring defects
+  (14x missing frontmatter in bfagent, status values outside the enum) rather than
+  vocabulary gaps. This is the second batch of this pattern — see 0.7.1.
+- **`sister_of` rejected repo-qualified refs.** 50 of 57 qualified `sister_of`
+  entries in the fleet point at the ADR's *own* repo
+  (`ausschreibungs-hub:ADR-005`) — the same local tree ADR-211 describes, just
+  written qualified. New `$defs/QualifiedADRRef` accepts the
+  `repo:ADR-NNN` form (platform:ADR-211 C5/I4) with an optional section suffix.
+- **Generic governance variants hard-failed instead of being normalized.**
+  ADR-211 Rev 21 says `ratified`, `amendments`, `revisions`, `decision` and
+  `external_review` are not part of the convention and should be normalized by
+  iil-adrfw. A faithful alias is impossible for all of them — the fleet's
+  `amendments` entries carry `date`/`by`/`what`, while the canonical `amended`
+  requires a `v`-prefixed version, an ISO date string and a minimum-length
+  summary; `decision`, `external_review` and `ratified` have no canonical
+  counterpart at all. Inventing a mapping would record wrong metadata, so they
+  are stripped (existing `_STRIPPED_FIELDS` mechanism): the frontmatter stops
+  hard-failing and the content stays in the ADR body.
 - **Diagnosis mode crashed with a bare `KeyError`.** `load_adr(..., raw=True)` skips
   normalization, so ADRs relying on aliases or inference reached Phase 3 incomplete.
   Now raises `ADRLoadError` naming the missing fields and why.
@@ -63,6 +92,8 @@ fixes the contract they actually depend on.
   configuration error, not an internal error, and the message carries the fix.
 - `examples/test_e2e_consumer_contract.py` — 24 tests pinning the consumer-facing
   contract, each mapped to one of the defects above.
+- `examples/test_e2e_adr211_rev21_schema.py` — 25 tests pinning the ADR-211 Rev 21
+  vocabulary against the values ADR-211 and the fleet actually use.
 
 ### Changed
 

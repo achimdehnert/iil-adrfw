@@ -95,6 +95,22 @@ _STRIPPED_FIELDS: frozenset[str] = frozenset(
         # Revision metadata (not schema fields):
         "revised",
         "revision",
+        # Generic governance variants. platform:ADR-211 Rev 21 lists these as
+        # explicitly NOT part of the Klickdummy convention and says iil-adrfw
+        # should normalize them. A faithful *alias* is impossible for all of
+        # them — `amendments` carries `by`/`date`/`what` (or `date`/`summary`/
+        # `adds_screens`), while the canonical `amended` needs
+        # `version`/`at`/`by`/`summary`; `decision`, `external_review` and
+        # `ratified` have no canonical counterpart at all. Inventing a mapping
+        # would silently record wrong metadata, so they are stripped instead:
+        # the frontmatter stops hard-failing, and the content stays in the ADR
+        # body where the authors already restate it. Fleet count 2026-08-06:
+        # amendments 4x, ratified 2x, revisions/decision/external_review 1x each.
+        "ratified",
+        "amendments",
+        "revisions",
+        "decision",
+        "external_review",
     }
 )
 
