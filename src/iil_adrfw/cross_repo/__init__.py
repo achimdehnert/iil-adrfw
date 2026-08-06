@@ -21,8 +21,13 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timezone
 from pathlib import Path
 
-import libcst as cst
-from libcst.metadata import PositionProvider
+try:
+    import libcst as cst
+    from libcst.metadata import PositionProvider
+except ImportError as _exc:  # pragma: no cover - exercised via the extras matrix
+    from iil_adrfw.errors import MissingExtraError
+
+    raise MissingExtraError("checkers", "iil_adrfw.cross_repo") from _exc
 
 from iil_adrfw.domain import ADR
 from iil_adrfw.domain.cross_repo import (

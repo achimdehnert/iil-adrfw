@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Protocol
 
 from iil_adrfw.domain import Rule, RuleViolation
+from iil_adrfw.errors import MissingExtraError
 
 
 class Checker(Protocol):
@@ -36,7 +37,13 @@ def build_checker(rule: Rule) -> Checker | None:
         return _REGISTRY.get(ep)
 
     if spec_type == "ast" and spec.get("language") == "python":
-        from iil_adrfw.checkers.python_ast import PythonASTChecker
+        # This is the real libcst boundary: the AST checkers ship as the optional
+        # `[checkers]` extra, so a lean CI install reaches here only when a rule
+        # actually asks for AST checking. Fail with the fix, not a bare traceback.
+        try:
+            from iil_adrfw.checkers.python_ast import PythonASTChecker
+        except ImportError as exc:
+            raise MissingExtraError("checkers", f"Rule {rule.global_id!r}") from exc
 
         return PythonASTChecker(spec)
 

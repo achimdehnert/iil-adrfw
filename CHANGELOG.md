@@ -5,6 +5,83 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-08-06
+
+Consumer-ergonomics release. The framework worked well for the repo that
+develops it and badly for the 38 other repos that carry ADRs — this release
+fixes the contract they actually depend on.
+
+### Fixed
+
+- **`iil-adrfw audit` silently audited nothing (fleet-wide, months).** `audit` and
+  eight other subcommands took the ADR directory *only* from `$IIL_ADRFW_ADRS_DIR`,
+  while `validate`/`staleness`/`graph`/`export`/`index` took it positionally and
+  `metrics` took `--adr-dir`. meiki-hub and ttz-hub called
+  `iil-adrfw audit --adr-dir docs/adr` nightly; argparse rejected the flag, exited 2
+  with empty stdout, and their workflows' "no JSON output" branch turned that into a
+  green run. Verified on
+  [meiki-hub run 31072337200](https://github.com/meiki-lra/meiki-hub/actions/runs/31072337200)
+  (2026-08-06): `[INFO] Audit produced no JSON output`, conclusion success.
+  **Every** subcommand now accepts `--adr-dir`; positional forms still work.
+- **An empty or missing ADR directory reported perfect health.** The default ADR
+  directory was `./adrs`, which no repo in the fleet uses, so an unset env var
+  loaded zero ADRs and printed `health score 1.000 / OK — no findings / exit 0`.
+  Default is now `docs/adr`; a missing directory or an empty constitution is a
+  configuration error (exit 2), with `--allow-empty` as the explicit opt-out.
+- **Bundled schemas were unreachable in any `pip install`.** `server._schemas_dir()`
+  resolved to `<prefix>/lib/pythonX.Y/schemas` — a path that never exists in an
+  installed package — so all 12 MCP tools and every env-var-driven subcommand died
+  with `FileNotFoundError` unless the caller also set `IIL_ADRFW_SCHEMAS_DIR`.
+  It now resolves the packaged `iil_adrfw/schemas/`, with the env var as override.
+- **`audit` died on the first malformed ADR.** A single invalid file raised out of
+  the constitution load, so `audit` exited 3 ("internal error") — the tool was
+  unusable in exactly the repos whose ADR hygiene most needed auditing
+  (meiki-hub: 23 of 36 ADRs invalid). `load_adrs()` gained an opt-in `errors=`
+  collector (default stays strict); `audit` now reports unloadable ADRs as
+  `loadability` findings and audits the rest.
+- **Diagnosis mode crashed with a bare `KeyError`.** `load_adr(..., raw=True)` skips
+  normalization, so ADRs relying on aliases or inference reached Phase 3 incomplete.
+  Now raises `ADRLoadError` naming the missing fields and why.
+
+### Added
+
+- **`--adr-dir` on every subcommand**, with one documented precedence:
+  explicit flag → positional → `$IIL_ADRFW_ADRS_DIR` → `docs/adr`.
+- **`freshness` and `impact` CLI subcommands** — both existed as MCP tools with
+  their implementation inline in the tool wrapper and no CLI equivalent.
+- **Reusable GitHub workflow** `.github/workflows/_adr-validate.yml`
+  (`workflow_call`): a consuming repo gets ADR validation, audit and staleness in
+  six lines, with no steps to copy and drift.
+- **`.pre-commit-hooks.yaml`** exposing `adr-validate`, `adr-staleness`, `adr-audit`.
+- **`py.typed`** — the strict-typed internals are now visible to consumers' mypy.
+- **Top-level re-exports**: `load_adrs`, `load_adr`, `get_schema_dir`,
+  `ConstitutionGraph`, `run_audit`, `ADR`, `ADRLoadError`, `Status`.
+- **`iil-adrfw --version`**.
+- **LICENSE file + `license` metadata** — the README carried an MIT badge with no
+  LICENSE shipped and no license field in the package metadata.
+- `MissingExtraError`, mapped to exit code 2: a missing optional extra is a
+  configuration error, not an internal error, and the message carries the fix.
+- `examples/test_e2e_consumer_contract.py` — 24 tests pinning the consumer-facing
+  contract, each mapped to one of the defects above.
+
+### Changed
+
+- **Runtime install shrank from 69 packages to 12.** `fastmcp` and `libcst` are now
+  optional extras (`[mcp]`, `[checkers]`, or `[all]` for the pre-0.8 footprint).
+  A consumer that only gates ADR frontmatter in CI no longer installs the MCP
+  server stack, authlib, cryptography, keyring, opentelemetry and libcst.
+- **`iil_adrfw.server` split into `iil_adrfw.api` + `iil_adrfw.server`.** `api`
+  carries all request/response models and `_do_*` handlers and imports no MCP
+  machinery; `server` is the FastMCP transport over it. Everything the pre-0.8
+  `iil_adrfw.server` exported is re-exported there — existing imports keep working.
+
+### Migration
+
+- `pip install iil-adrfw` → add `[mcp]` if you run `iil-adrfw-mcp`, `[checkers]` if
+  you use `iil-adrfw check` or `validate-cross-repo`. Invoking either without its
+  extra now exits 2 with the exact install command.
+- Pipelines relying on an empty ADR directory exiting 0 must pass `--allow-empty`.
+
 ## [0.7.2] — 2026-07-27
 
 ### Fixed

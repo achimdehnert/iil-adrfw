@@ -107,12 +107,18 @@ def test_should_escape_pipes_in_markdown_export_title(tmp_path, capsys):
 # ─── B-13: exit-code contract ──────────────────────────────────────
 
 
-def test_should_exit_3_on_uncaught_internal_error(monkeypatch, capsys):
+def test_should_exit_3_on_uncaught_internal_error(monkeypatch, capsys, tmp_path):
     def _boom(_args: argparse.Namespace) -> int:
         raise RuntimeError("boom")
 
+    # `main()` validates the ADR directory before dispatch (exit 2), so this test
+    # needs a real one to reach the handler whose exit-3 propagation it asserts.
+    adr_dir = tmp_path / "docs" / "adr"
+    adr_dir.mkdir(parents=True)
+    (adr_dir / "ADR-001-x.md").write_text("---\nid: ADR-001\n---\n", encoding="utf-8")
+
     monkeypatch.setattr(cli, "_cmd_list", _boom)
-    monkeypatch.setattr(sys, "argv", ["iil-adrfw", "list"])
+    monkeypatch.setattr(sys, "argv", ["iil-adrfw", "list", "--adr-dir", str(adr_dir)])
 
     with pytest.raises(SystemExit) as exc_info:
         cli.main()

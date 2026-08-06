@@ -19,6 +19,13 @@ python3 -m venv .venv && source .venv/bin/activate   # PEP-668-managed hosts
 python3 -m pip install -e ".[dev]"   # editable install with dev extras
 ```
 
+Runtime deps are deliberately lean (12 packages). `fastmcp` lives in the `[mcp]`
+extra, `libcst` in `[checkers]`; `[dev]` pulls both. **Never import `fastmcp` or
+`libcst` from a module the CLI reaches** — that would silently re-fatten every
+consumer's CI install. The extras boundaries are `server.py` (fastmcp),
+`checkers/build_checker` and `cross_repo` (libcst), each raising
+`MissingExtraError` with the install command.
+
 Fallback if a venv isn't an option (PEP-668-managed hosts):
 `pip install --user --break-system-packages -e ".[dev]"`.
 
@@ -70,8 +77,10 @@ argument for going advisory-first). Reproduce locally:
 | `freshness/` | repo-vs-ADR drift checks |
 | `metrics/` | Schema v4 controlling metrics (`iil-adrfw metrics`) |
 | `index/` | INDEX.md table renderer (ADR-138) — exposed as the `iil-adrfw index` CLI subcommand |
-| `checkers/` | AST checkers (libcst-based) |
-| `server.py` | FastMCP request models + `_do_*` handlers |
+| `checkers/` | AST checkers (libcst-based, `[checkers]` extra) |
+| `api.py` | Transport-neutral core: request/response models + `_do_*` handlers |
+| `server.py` | FastMCP transport over `api.py` (`[mcp]` extra) |
+| `errors.py` | Shared exception types (`MissingExtraError`) |
 | `cli.py` | `iil-adrfw` command-line entry point |
 
 ## Conventions
@@ -79,6 +88,13 @@ argument for going advisory-first). Reproduce locally:
 - Commits: `[feat|fix|refactor|docs|test|chore](scope): description`.
 - Tests: `test_should_<expected_behavior>` (ADR-057; enforced via `iil-testkit`).
 - ADR schema is the source of truth — change the schema + validator together.
+- **One ADR-directory contract**: every subcommand takes `--adr-dir`, resolved
+  explicit flag → positional → `$IIL_ADRFW_ADRS_DIR` → `docs/adr`, enforced
+  centrally in `cli._apply_adr_dir`. A new subcommand calls `_add_adr_dir_args`;
+  it must not invent a third spelling (that split caused a fleet-wide silent
+  no-op, see CHANGELOG 0.8.0).
+- **Never let a misconfiguration read as health.** A missing or empty ADR
+  directory exits 2, not 0. `examples/test_e2e_consumer_contract.py` pins this.
 
 ## Release
 
