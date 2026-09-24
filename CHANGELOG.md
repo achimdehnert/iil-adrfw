@@ -5,6 +5,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/).
 
 ## [Unreleased]
 
+## [0.9.0] — unreleased
+
+### Added
+
+- **`iil_adrfw.rules.drift` — ADR drift rules as a library module**
+  ([platform#3457](https://github.com/achimdehnert/platform/issues/3457) step 1).
+  The drift/wirkung/form rules that dev-hub built in `apps/adr_lifecycle/drift_rules.py`
+  (dev-hub#374, #376) now live here as the canonical source, ported 1:1: same
+  function names, signatures and return values (`pruefe_adr`, `faelligkeit`,
+  `hat_confirmation_abschnitt`, `leere_klassen`, `alle_gruende`,
+  `ist_review_noetig`, `REGEL_KLASSE`, `CONFIRMATION_HEADING_RE`, …), so dev-hub
+  can switch to a re-export. `ADRStatus` and `DriftReason` are rebuilt without
+  Django as `enum.StrEnum` with identical values and a `.label`; plain strings
+  work as input too. No Django or ORM dependency.
+
 ## [0.8.0] — 2026-08-06
 
 Consumer-ergonomics release. The framework worked well for the repo that
